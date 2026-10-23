@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="head_speed">Geschwindigkeitsmanipulation</string>
+    <string name="head_set">Marker und Ausschnitte setzen</string>
+    <string name="no_items">Noch keine Ausschnitte oder Marker</string>
+    <string name="no_track">Kein Musikstück gewählt</string>
+    <string name="default_segment">Ausschnitt</string>
+    <string name="default_marker">Marker</string>
+    <string name="edit_segment">Ausschnitt bearbeiten</string>
+    <string name="edit_marker">Marker bearbeiten</string>
+    <string name="f_name">Name</string>
+    <string name="f_start">Start (m:ss.mmm)</string>
+    <string name="f_end">Ende (m:ss.mmm)</string>
+    <string name="f_time">Zeitpunkt (m:ss.mmm)</string>
+    <string name="f_speed">Tempo (50–200 %)</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="confirm">Bestätigen</string>
+    <string name="delete">Löschen</string>
+    <string name="delete_msg">„%1$s“ wirklich löschen?</string>
+    <string name="history">Historie</string>
+    <string name="settings">Einstellungen</string>
+    <string name="accent_color">Akzentfarbe</string>
+    <string name="language">Sprache</string>
+    <string name="language_system">Systemsprache</string>
+    <string name="speed_value">%1$d %%</string>
+    <string name="err_open">Musikstück konnte nicht geöffnet werden</string>
+    <string name="err_save">Ausschnitte/Marker konnten nicht gespeichert werden</string>
+    <string name="err_time">Ungültiger Zeitpunkt</string>
+    <string name="err_range">Das Ende muss nach dem Anfang liegen und innerhalb des Stücks</string>
+    <string name="err_speed">Das Tempo muss zwischen 50 und 200 % liegen</string>
+    <string name="end_before_start">Das Ende muss nach dem Anfang liegen</string>
+    <string name="no_next">Kein weiterer Marker oder Ausschnittanfang</string>
+    <string name="history_empty">Die Historie ist noch leer</string>
+    <string name="browser_empty">Keine Ordner oder Musikdateien</string>
+    <string name="browser_no_access">Ordner nicht mehr zugänglich</string>
+    <string name="notify_channel">Wiedergabe</string>
+    <string name="notify_text">Wiedergabe läuft</string>
+    <string name="notify_pause">Pause</string>
+
+    <!-- Beschreibungen für Bedienhilfen (die Schaltflächen zeigen nur Symbole) -->
+    <string name="cd_choose">Musikstück wählen</string>
+    <string name="cd_history">Historie</string>
+    <string name="cd_settings">Einstellungen</string>
+    <string name="cd_prev">Zum vorherigen Marker oder Ausschnittanfang</string>
+    <string name="cd_next">Zum nächsten Marker oder Ausschnittanfang</string>
+    <string name="cd_rew">5 Sekunden zurück</string>
+    <string name="cd_ffwd">5 Sekunden vor</string>
+    <string name="cd_play">Abspielen (lang drücken: zum Anfang)</string>
+    <string name="cd_pause">Pause (lang drücken: zum Anfang)</string>
+    <string name="cd_seg_start">Anfang des Ausschnitts setzen</string>
+    <string name="cd_seg_end">Ende des Ausschnitts setzen</string>
+    <string name="cd_marker">Marker setzen</string>
+    <string name="cd_loop">Schleife ein/aus</string>
+    <string name="cd_speed_minus">Langsamer</string>
+    <string name="cd_speed_plus">Schneller</string>
+    <string name="cd_speed_reset">Tempo auf 100 % zurücksetzen</string>
+    <string name="take_speed">Aktuelles Tempo für diesen Ausschnitt übernehmen</string>
+    <string name="cd_edit">Bearbeiten</string>
+    <string name="cd_delete">Löschen</string>
+    <string name="cd_back">Zurück</string>
+    <string name="cd_up">Eine Ebene hoch</string>
+    <string name="cd_change_folder">Ordner wechseln</string>
+</resources>

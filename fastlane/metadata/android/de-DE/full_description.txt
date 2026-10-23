@@ -1,0 +1,24 @@
+RepIO ist ein Musikplayer zum Üben. Studiere ein Musikstück Stück für Stück ein: schwierige Stellen markieren, in Schleife abspielen, langsamer stellen – und wieder schneller, sobald es sitzt.
+
+Ausschnitte und Marker
+• Beliebig viele Ausschnitte (Start- und Endpunkt) festlegen, einmalig oder in Schleife abspielen
+• Marker setzen und direkt anspringen
+• Ausschnitte und Marker benennen, Start, Ende und Tempo jederzeit bearbeiten
+• Alles in einer Liste, nach Zeit sortiert und in der Zeitleiste sichtbar
+
+Tempo
+• Abspielgeschwindigkeit von 50 % bis 200 % ohne Tonhöhenänderung
+• Eigenes Tempo pro Ausschnitt – z. B. das Solo mit 70 %, den Rest in Originaltempo
+• Mit einem Tipp zurück auf 100 %
+
+Fürs Üben gemacht
+• Große Bedienelemente, auch mit Instrument in der Hand gut zu treffen
+• Wiedergabe läuft bei gesperrtem Bildschirm weiter
+• Verlauf der letzten 20 Stücke, das zuletzt gespielte ist beim Start vorgewählt
+• Einstellbare Akzentfarbe, Oberfläche auf Deutsch und Englisch
+
+Deine Dateien, deine Daten
+• Spielt lokale Audiodateien (MP3, FLAC, OGG, WAV und weitere)
+• Ausschnitte und Marker werden als lesbare YAML-Datei neben der Musikdatei gespeichert – leicht zu sichern, zu kopieren oder zu bearbeiten
+• Kein Internetzugriff, keine Werbung, kein Tracking, kein Konto
+• Kostenlos und Open Source

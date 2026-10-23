@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/top_height"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            style="@style/IconButton"
+            android:layout_width="72dp"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/cd_back"
+            android:padding="18dp"
+            android:src="@drawable/ic_back" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:text="@string/settings"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/accent_color"
+                android:textSize="18sp" />
+
+            <GridLayout
+                android:id="@+id/swatches"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="4" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/language"
+                android:textSize="18sp" />
+
+            <RadioGroup
+                android:id="@+id/languageGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/langSystem"
+                    style="@style/LanguageOption"
+                    android:text="@string/language_system" />
+
+                <RadioButton
+                    android:id="@+id/langDe"
+                    style="@style/LanguageOption"
+                    android:text="@string/language_de" />
+
+                <RadioButton
+                    android:id="@+id/langEn"
+                    style="@style/LanguageOption"
+                    android:text="@string/language_en" />
+            </RadioGroup>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Abbrechen / Bestätigen: gleich breit, ohne farbige Hinterlegung -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/top_height"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnCancel"
+            style="@style/DialogButton"
+            android:text="@string/cancel" />
+
+        <Button
+            android:id="@+id/btnConfirm"
+            style="@style/DialogButton"
+            android:text="@string/confirm"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

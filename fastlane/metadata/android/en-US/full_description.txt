@@ -1,0 +1,24 @@
+RepIO is a music player made for practising. Learn a piece bit by bit: mark the difficult passages, loop them, slow them down – and speed them up again once you've got them.
+
+Sections and markers
+• Define as many sections as you like (start and end point), play them once or in a loop
+• Set markers and jump to them directly
+• Name sections and markers, edit start, end and tempo at any time
+• All sections and markers in one list, sorted by time and shown on the timeline
+
+Tempo
+• Playback speed from 50 % to 200 % without changing the pitch
+• Store a tempo per section – e.g. practise the solo at 70 %, the rest at full speed
+• Back to 100 % with a single tap
+
+Made for practising
+• Large controls you can hit with an instrument in your hands
+• Playback continues with the screen locked
+• History of the last 20 pieces; the last piece is preselected on start
+• Adjustable accent colour, English and German interface
+
+Your files, your data
+• Plays local audio files (MP3, FLAC, OGG, WAV and more)
+• Sections and markers are saved as a readable YAML file next to the audio file – easy to back up, copy or edit
+• No internet access, no ads, no tracking, no account
+• Free and open source

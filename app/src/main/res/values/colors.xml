@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="selected">#40FF9800</color>
+    <color name="surface">#FFFFFF</color>
+    <!-- "Schwarz" der Oberfläche: helleres Anthrazit -->
+    <color name="anthracite">#FF3D444B</color>
+</resources>

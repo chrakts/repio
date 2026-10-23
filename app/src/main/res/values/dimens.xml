@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Alle Bedienzeilen (Transport, Ausschnitt/Marker/Schleife, Tempo) haben dieselbe Höhe: 72 dp × 1,3 -->
+    <dimen name="control_height">94dp</dimen>
+    <dimen name="top_height">72dp</dimen>
+</resources>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">RepIO</string>
+    <string name="head_speed">Speed control</string>
+    <string name="head_set">Set markers and sections</string>
+    <string name="no_items">No sections or markers yet</string>
+    <string name="no_track">No piece selected</string>
+    <string name="default_segment">Section</string>
+    <string name="default_marker">Marker</string>
+    <string name="edit_segment">Edit section</string>
+    <string name="edit_marker">Edit marker</string>
+    <string name="f_name">Name</string>
+    <string name="f_start">Start (m:ss.mmm)</string>
+    <string name="f_end">End (m:ss.mmm)</string>
+    <string name="f_time">Position (m:ss.mmm)</string>
+    <string name="f_speed">Tempo (50–200 %)</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="delete">Delete</string>
+    <string name="delete_msg">Really delete “%1$s”?</string>
+    <string name="history">History</string>
+    <string name="settings">Settings</string>
+    <string name="accent_color">Accent colour</string>
+    <string name="language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="language_de" translatable="false">Deutsch</string>
+    <string name="language_en" translatable="false">English</string>
+    <string name="speed_value">%1$d %%</string>
+    <string name="err_open">The piece could not be opened</string>
+    <string name="err_save">Sections/markers could not be saved</string>
+    <string name="err_time">Invalid time</string>
+    <string name="err_range">The end must be after the start and within the piece</string>
+    <string name="err_speed">The tempo must be between 50 and 200 %</string>
+    <string name="end_before_start">The end must be after the start</string>
+    <string name="no_next">No further marker or section start</string>
+    <string name="history_empty">The history is still empty</string>
+    <string name="browser_empty">No folders or audio files</string>
+    <string name="browser_no_access">Folder is no longer accessible</string>
+    <string name="notify_channel">Playback</string>
+    <string name="notify_text">Playing</string>
+    <string name="notify_pause">Pause</string>
+
+    <!-- Descriptions for accessibility services (the buttons only show icons) -->
+    <string name="cd_choose">Choose a piece</string>
+    <string name="cd_history">History</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_prev">To the previous marker or section start</string>
+    <string name="cd_next">To the next marker or section start</string>
+    <string name="cd_rew">Back 5 seconds</string>
+    <string name="cd_ffwd">Forward 5 seconds</string>
+    <string name="cd_play">Play (long press: back to start)</string>
+    <string name="cd_pause">Pause (long press: back to start)</string>
+    <string name="cd_seg_start">Set section start</string>
+    <string name="cd_seg_end">Set section end</string>
+    <string name="cd_marker">Set marker</string>
+    <string name="cd_loop">Loop on/off</string>
+    <string name="cd_speed_minus">Slower</string>
+    <string name="cd_speed_plus">Faster</string>
+    <string name="cd_speed_reset">Reset tempo to 100 %</string>
+    <string name="take_speed">Use the current tempo for this section</string>
+    <string name="cd_edit">Edit</string>
+    <string name="cd_delete">Delete</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_up">One level up</string>
+    <string name="cd_change_folder">Change folder</string>
+</resources>
