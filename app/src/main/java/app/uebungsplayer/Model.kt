@@ -15,9 +15,40 @@ data class Segment(
     override var name: String,
     var startMs: Int,
     var endMs: Int,
-    var speed: Int = 100
+    var speed: Int = 100,
+    var analysis: SegmentAnalysis? = null
 ) : Item() {
     override val time: Int get() = startMs
+
+    /** Analyse, sofern sie noch zu Anfang und Ende des Ausschnitts passt. */
+    fun validAnalysis(): SegmentAnalysis? = analysis?.takeIf { it.matches(startMs, endMs) }
+
+    /** Gewähltes Tempo des Originals, umgerechnet auf die Geschwindigkeit des Ausschnitts. */
+    fun bpmAtSpeed(): Double? = validAnalysis()?.chosenBpm?.let { it * speed / 100.0 }
+}
+
+/** Tempovorschlag aus der Analyse; confidence 0..1. */
+data class TempoEstimate(val bpm: Double, val confidence: Double)
+
+/** Tonartvorschlag: Grundton als Tonklasse (0 = C … 11 = H), Dur/Moll; confidence 0..1. */
+data class KeyEstimate(val tonic: Int, val minor: Boolean, val confidence: Double)
+
+/**
+ * Ergebnis der Ausschnitt-Analyse. Gilt nur für den analysierten Bereich [startMs, endMs];
+ * werden Anfang oder Ende des Ausschnitts geändert, verfällt es.
+ */
+data class SegmentAnalysis(
+    val startMs: Int,
+    val endMs: Int,
+    val tuningHz: Double? = null,
+    val tuningTolHz: Double? = null,
+    val tempos: List<TempoEstimate> = emptyList(),
+    val tempoChoice: Int = 0,
+    val keys: List<KeyEstimate> = emptyList()
+) {
+    val chosenBpm: Double? get() = tempos.getOrNull(tempoChoice)?.bpm
+    fun matches(start: Int, end: Int) = start == startMs && end == endMs
+    val isEmpty: Boolean get() = tuningHz == null && tempos.isEmpty() && keys.isEmpty()
 }
 
 data class Marker(override var name: String, var ms: Int) : Item() {

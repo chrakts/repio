@@ -259,7 +259,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Popup zum Bearbeiten von Name, Zeitpunkten und (bei Ausschnitten) Tempo.
+     * Popup zum Bearbeiten von Name, Zeitpunkten und (bei Ausschnitten) Tempo und Analyse.
      * Die Musik pausiert, solange es offen ist, und läuft danach weiter.
      */
     private fun showEditDialog(item: Item) {
@@ -293,13 +293,17 @@ class MainActivity : AppCompatActivity() {
         )
         val endF = seg?.let { field(getString(R.string.f_end), fmtFull(it.endMs), numeric = false, time = true) }
         val speedF = seg?.let { field(getString(R.string.f_speed), it.speed.toString(), numeric = true, time = false) }
+        val panel = seg?.let { AnalysisPanel(this, box, it, startF, endF!!, speedF!!) }
 
         val dlg = AlertDialog.Builder(this)
             .setTitle(if (seg != null) R.string.edit_segment else R.string.edit_marker)
             .setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton(R.string.ok, null)
             .setNegativeButton(R.string.cancel, null)
-            .setOnDismissListener { if (wasPlaying) Engine.play() }
+            .setOnDismissListener {
+                panel?.cancel()
+                if (wasPlaying) Engine.play()
+            }
             .create()
         dlg.window?.setSoftInputMode(
             WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
@@ -326,6 +330,9 @@ class MainActivity : AppCompatActivity() {
                     seg.startMs = t0
                     seg.endMs = t1
                     seg.speed = sp
+                    // Analyseergebnis (auch nur ein anders gewähltes Tempo) übernehmen,
+                    // sofern es zu Anfang und Ende passt; sonst verfällt es.
+                    seg.analysis = panel?.result()?.takeIf { it.matches(t0, t1) }
                 } else if (item is Marker) {
                     item.ms = t0
                 }
@@ -459,9 +466,15 @@ class MainActivity : AppCompatActivity() {
             icon.imageTintList = ColorStateList.valueOf(if (seg != null) Settings.accent else 0xFF03A9F4.toInt())
 
             v.findViewById<TextView>(R.id.rowTitle).text = item.name
+            // Bei Ausschnitten mit gewähltem Tempo: zusätzlich das Tempo bei der Ausschnitt-Geschwindigkeit
+            val bpm = if (seg != null && Settings.analyzeTempo) seg.bpmAtSpeed() else null
             v.findViewById<TextView>(R.id.rowSub).text =
-                if (seg != null) "${fmt(seg.startMs, true)}–${fmt(seg.endMs, true)} · ${seg.speed} %"
-                else fmt(item.time, true)
+                if (seg != null) {
+                    "${fmt(seg.startMs, true)}–${fmt(seg.endMs, true)} · ${seg.speed} %" +
+                        (bpm?.let { " · " + getString(R.string.bpm_list, it) } ?: "")
+                } else {
+                    fmt(item.time, true)
+                }
             v.findViewById<TimelineView>(R.id.rowTimeline)
                 .setData(Engine.duration(), listOfNotNull(seg), listOfNotNull(mark))
 

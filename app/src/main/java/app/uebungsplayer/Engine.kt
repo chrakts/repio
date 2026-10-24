@@ -71,6 +71,9 @@ object Engine {
 
     fun items(): List<Item> = ann.items()
 
+    /** Inhalts-URI des geöffneten Stücks (z. B. für die Analyse), sonst null. */
+    fun trackUri(): Uri? = track?.let { Saf.docUri(Uri.parse(it.tree), it.docId) }
+
     // ------------------------------------------------------------ Stück öffnen
 
     fun open(t: Track, addToHistory: Boolean = true): Boolean {

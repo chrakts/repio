@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.GridLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -15,7 +16,10 @@ import androidx.core.widget.CompoundButtonCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 
-/** App-Einstellungen: Akzentfarbe (Ausschnitte, Auswahl, Schleife, Regler). Die Sprache verwaltet [Lang]. */
+/**
+ * App-Einstellungen: Akzentfarbe (Ausschnitte, Auswahl, Schleife, Regler) und die im
+ * Ausschnitt-Popup angebotenen Analysen. Die Sprache verwaltet [Lang].
+ */
 object Settings {
     val PALETTE = intArrayOf(
         0xFFFF9800.toInt(), // Orange (Standard)
@@ -31,8 +35,33 @@ object Settings {
     var accent: Int = PALETTE[0]
         private set
 
+    var analyzeTuning = true
+        private set
+    var analyzeTempo = true
+        private set
+    var analyzeKey = true
+        private set
+
+    /** Mindestens eine Analyse gewählt (sonst ist der Analyse-Button ausgegraut). */
+    val anyAnalysis: Boolean get() = analyzeTuning || analyzeTempo || analyzeKey
+
     fun load(ctx: Context) {
-        accent = ctx.getSharedPreferences("app", Context.MODE_PRIVATE).getInt("accent", PALETTE[0])
+        val p = ctx.getSharedPreferences("app", Context.MODE_PRIVATE)
+        accent = p.getInt("accent", PALETTE[0])
+        analyzeTuning = p.getBoolean("analyze_tuning", true)
+        analyzeTempo = p.getBoolean("analyze_tempo", true)
+        analyzeKey = p.getBoolean("analyze_key", true)
+    }
+
+    fun setAnalyses(ctx: Context, tuning: Boolean, tempo: Boolean, key: Boolean) {
+        analyzeTuning = tuning
+        analyzeTempo = tempo
+        analyzeKey = key
+        ctx.getSharedPreferences("app", Context.MODE_PRIVATE).edit()
+            .putBoolean("analyze_tuning", tuning)
+            .putBoolean("analyze_tempo", tempo)
+            .putBoolean("analyze_key", key)
+            .apply()
     }
 
     fun setAccent(ctx: Context, color: Int) {
@@ -61,6 +90,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var grid: GridLayout
     private lateinit var langGroup: RadioGroup
     private lateinit var btnConfirm: Button
+    private lateinit var cbTuning: CheckBox
+    private lateinit var cbTempo: CheckBox
+    private lateinit var cbKey: CheckBox
     private var pendingAccent = 0
 
     private val langButtons = mapOf("" to R.id.langSystem, "de" to R.id.langDe, "en" to R.id.langEn)
@@ -74,8 +106,17 @@ class SettingsActivity : AppCompatActivity() {
         grid = findViewById(R.id.swatches)
         langGroup = findViewById(R.id.languageGroup)
         btnConfirm = findViewById(R.id.btnConfirm)
+        cbTuning = findViewById(R.id.analysisTuning)
+        cbTempo = findViewById(R.id.analysisTempo)
+        cbKey = findViewById(R.id.analysisKey)
 
-        if (savedInstanceState == null) langGroup.check(langButtons[Lang.current()] ?: R.id.langSystem)
+        if (savedInstanceState == null) {
+            langGroup.check(langButtons[Lang.current()] ?: R.id.langSystem)
+            // Nach einer Drehung stellen die Ankreuzfelder ihren Zustand selbst wieder her
+            cbTuning.isChecked = Settings.analyzeTuning
+            cbTempo.isChecked = Settings.analyzeTempo
+            cbKey.isChecked = Settings.analyzeKey
+        }
 
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<View>(R.id.btnCancel).setOnClickListener { finish() }
@@ -93,6 +134,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun confirm() {
         Settings.setAccent(this, pendingAccent)
+        Settings.setAnalyses(this, cbTuning.isChecked, cbTempo.isChecked, cbKey.isChecked)
         val chosen = langButtons.entries.firstOrNull { it.value == langGroup.checkedRadioButtonId }?.key ?: ""
         val changed = chosen != Lang.current()
         finish()
@@ -128,6 +170,7 @@ class SettingsActivity : AppCompatActivity() {
         for (id in langButtons.values) {
             CompoundButtonCompat.setButtonTintList(findViewById<RadioButton>(id), tint)
         }
+        for (cb in listOf(cbTuning, cbTempo, cbKey)) CompoundButtonCompat.setButtonTintList(cb, tint)
         btnConfirm.setTextColor(pendingAccent)
     }
 
