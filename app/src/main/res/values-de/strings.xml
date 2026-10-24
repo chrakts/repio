@@ -61,4 +61,38 @@
     <string name="cd_back">Zurück</string>
     <string name="cd_up">Eine Ebene hoch</string>
     <string name="cd_change_folder">Ordner wechseln</string>
+
+    <!-- Analyse eines Ausschnitts (Stimmung, Tempo, Tonart) -->
+    <string name="analyses">Analysen im Ausschnitt-Popup</string>
+    <string name="analysis_head">Analyse</string>
+    <string name="analyze">Analysieren</string>
+    <string name="analyzing">Analysiere …</string>
+    <string name="an_tuning">Stimmung</string>
+    <string name="an_tempo">Tempo</string>
+    <string name="an_key">Tonart</string>
+    <string name="tuning_value">a′ = %1$.1f Hz ± %2$.1f Hz</string>
+    <string name="not_determinable">nicht bestimmbar</string>
+    <string name="tempo_value">%1$.1f BPM</string>
+    <string name="tempo_at_speed">Bei %1$d %%: %2$.1f BPM</string>
+    <string name="bpm_list">%1$.0f BPM</string>
+    <string name="tempo_too_short">Ausschnitt zu kurz (mindestens zwei Schläge nötig)</string>
+    <string name="tempo_no_pulse">Kein deutlicher Puls erkennbar</string>
+    <string name="key_major">%1$s-Dur</string>
+    <string name="key_minor">%1$s-Moll</string>
+    <string-array name="key_major_names">
+        <item>C</item><item>Des</item><item>D</item><item>Es</item><item>E</item><item>F</item>
+        <item>Fis</item><item>G</item><item>As</item><item>A</item><item>B</item><item>H</item>
+    </string-array>
+    <string-array name="key_minor_names">
+        <item>c</item><item>cis</item><item>d</item><item>es</item><item>e</item><item>f</item>
+        <item>fis</item><item>g</item><item>gis</item><item>a</item><item>b</item><item>h</item>
+    </string-array>
+    <string name="key_short_hint">Kurzer Ausschnitt: Das Ergebnis beschreibt eher den klingenden Akkord als die Tonart</string>
+    <string name="confidence_value">%1$d %%</string>
+    <string name="cd_confidence">Vertrauen %1$d %%</string>
+    <string name="analysis_stale">Anfang oder Ende geändert – die Ergebnisse gelten nicht mehr</string>
+    <string name="analysis_failed">Der Ausschnitt konnte nicht analysiert werden</string>
+    <string name="analysis_too_long">Ausschnitte über 10 Minuten können nicht analysiert werden</string>
+    <string name="analysis_too_short">Der Ausschnitt ist zu kurz für eine Analyse</string>
+    <string name="analysis_silent">Der Ausschnitt ist stumm</string>
 </resources>

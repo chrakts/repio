@@ -84,6 +84,29 @@
                     style="@style/LanguageOption"
                     android:text="@string/language_en" />
             </RadioGroup>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/analyses"
+                android:textSize="18sp" />
+
+            <CheckBox
+                android:id="@+id/analysisTuning"
+                style="@style/AnalysisOption"
+                android:text="@string/an_tuning" />
+
+            <CheckBox
+                android:id="@+id/analysisTempo"
+                style="@style/AnalysisOption"
+                android:text="@string/an_tempo" />
+
+            <CheckBox
+                android:id="@+id/analysisKey"
+                style="@style/AnalysisOption"
+                android:text="@string/an_key" />
         </LinearLayout>
     </ScrollView>
 

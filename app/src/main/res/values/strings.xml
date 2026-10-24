@@ -64,4 +64,38 @@
     <string name="cd_back">Back</string>
     <string name="cd_up">One level up</string>
     <string name="cd_change_folder">Change folder</string>
+
+    <!-- Analysis of a section (tuning, tempo, key) -->
+    <string name="analyses">Analyses in the section popup</string>
+    <string name="analysis_head">Analysis</string>
+    <string name="analyze">Analyse</string>
+    <string name="analyzing">Analysing …</string>
+    <string name="an_tuning">Tuning</string>
+    <string name="an_tempo">Tempo</string>
+    <string name="an_key">Key</string>
+    <string name="tuning_value">a′ = %1$.1f Hz ± %2$.1f Hz</string>
+    <string name="not_determinable">not determinable</string>
+    <string name="tempo_value">%1$.1f BPM</string>
+    <string name="tempo_at_speed">At %1$d %%: %2$.1f BPM</string>
+    <string name="bpm_list">%1$.0f BPM</string>
+    <string name="tempo_too_short">Section too short (at least two beats needed)</string>
+    <string name="tempo_no_pulse">No clear beat detected</string>
+    <string name="key_major">%1$s major</string>
+    <string name="key_minor">%1$s minor</string>
+    <string-array name="key_major_names">
+        <item>C</item><item>D♭</item><item>D</item><item>E♭</item><item>E</item><item>F</item>
+        <item>F♯</item><item>G</item><item>A♭</item><item>A</item><item>B♭</item><item>B</item>
+    </string-array>
+    <string-array name="key_minor_names">
+        <item>C</item><item>C♯</item><item>D</item><item>E♭</item><item>E</item><item>F</item>
+        <item>F♯</item><item>G</item><item>G♯</item><item>A</item><item>B♭</item><item>B</item>
+    </string-array>
+    <string name="key_short_hint">Short section: the result reflects the sounding chord rather than the key</string>
+    <string name="confidence_value">%1$d %%</string>
+    <string name="cd_confidence">Confidence %1$d %%</string>
+    <string name="analysis_stale">Start or end changed – the results no longer apply</string>
+    <string name="analysis_failed">The section could not be analysed</string>
+    <string name="analysis_too_long">Sections longer than 10 minutes cannot be analysed</string>
+    <string name="analysis_too_short">The section is too short for an analysis</string>
+    <string name="analysis_silent">The section is silent</string>
 </resources>
