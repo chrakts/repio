@@ -15,7 +15,8 @@ Zielgruppe sind Musizierende, die ein Stück einstudieren: Passagen wiederholen,
 - Ausschnitte: Start und Ende setzen, automatischer Name, nachträglich umbenennen und zeitlich bearbeiten, einmalig oder in Schleife abspielen, eigenes Tempo je Ausschnitt.
 - Marker: benannte Zeitpunkte, die sich direkt anspringen lassen.
 - Tempo: 50 bis 200 % in 2-%-Schritten, die Tonhöhe bleibt gleich, schnelles Zurücksetzen auf 100 %.
-- Begleitdatei: Ausschnitte und Marker liegen als YAML-Datei im selben Ordner wie das Musikstück.
+- Analyse eines Ausschnitts: mittlere Stimmung (Kammerton), Tempo in BPM und Tonart, jeweils mit Vertrauensangabe.
+- Begleitdatei: Ausschnitte (samt Analyseergebnis) und Marker liegen als YAML-Datei im selben Ordner wie das Musikstück.
 - Historie: die letzten 20 Stücke; das zuletzt gespielte ist beim Start vorgewählt.
 - Wiedergabe läuft bei gesperrtem Smartphone weiter.
 
@@ -53,7 +54,10 @@ Die Pfeile zeigen, wer wen aufruft: Die Oberfläche gibt Befehle an die Engine u
 | `MainActivity.kt` | Hauptbildschirm, Liste, Popups, Anzeige-Aktualisierung alle 100 ms |
 | `TimelineView.kt` | Zeitleiste mit Touch-Bedienung; kleine Variante in der Liste |
 | `FileBrowserActivity.kt` | Dateibrowser im freigegebenen Ordner |
-| `Settings.kt` | Akzentfarbe und Einstellungsbildschirm |
+| `Settings.kt` | Akzentfarbe, angebotene Analysen und Einstellungsbildschirm |
+| `AnalysisPanel.kt` | Analyse-Bereich im Bearbeiten-Popup (Start, Fortschritt, Ergebnisse, Tempowahl) |
+| `AudioDecoder.kt` | Samplegenaues Dekodieren eines Zeitbereichs (MediaExtractor/MediaCodec) in Mono |
+| `AudioAnalysis.java` | Rechenkern ohne Android-Abhängigkeiten: Stimmung, Tempo, Tonart (Java, damit er sich auf dem PC gegen den Prototyp prüfen lässt) |
 | `Lang.kt` | Sprachwahl (AppCompat-Spracheinstellung pro App) |
 | `Model.kt` | Segment, Marker, Track, Historie, Zeitformate |
 | `Yaml.kt` | Lesen und Schreiben der Begleitdatei |
@@ -65,22 +69,32 @@ Jedes Musikstück hat höchstens eine Begleitdatei mit seinen Ausschnitten und M
 
 | Objekt | Felder | Regeln |
 | --- | --- | --- |
-| Ausschnitt (Segment) | Name, Anfang (ms), Ende (ms), Tempo (%) | Ende liegt mindestens 100 ms nach dem Anfang; beides innerhalb der Stücklänge; Tempo 50 bis 200, Standard 100 |
+| Ausschnitt (Segment) | Name, Anfang (ms), Ende (ms), Tempo (%), optional Analyse | Ende liegt mindestens 100 ms nach dem Anfang; beides innerhalb der Stücklänge; Tempo 50 bis 200, Standard 100 |
+| Analyse | Analysierter Bereich (Anfang, Ende), Stimmung (Hz) mit Streuung (± Hz), bis zu drei Tempovorschläge (BPM, Vertrauen 0–1) mit gewähltem Vorschlag, bis zu drei Tonartvorschläge (Grundton, Dur/Moll, Vertrauen) | Gilt nur, solange Anfang und Ende des Ausschnitts dem analysierten Bereich entsprechen; sonst verfällt sie beim Speichern |
 | Marker | Name, Zeitpunkt (ms) | Zeitpunkt innerhalb der Stücklänge |
 | Musikstück (Track) | Ordnerbaum, Dokument-ID, Ordner-ID des Stücks, Dateiname | Wird in der Historie gespeichert; der Ordner bestimmt, wo die YAML-Datei liegt |
 | Historie | Liste von Tracks, neueste zuerst | Höchstens 20 Einträge, ohne Duplikate (gleicher Ordnerbaum und gleiche Dokument-ID) |
 
 Standardnamen lauten „Ausschnitt N“ und „Marker N“, wobei N die kleinste noch freie Zahl ist.
 
-**YAML-Format (Version 2)**
+**YAML-Format (Version 3)**
 
 ```yaml
-version: 2
+version: 3
 segments:
   - name: "Ausschnitt 1"
     start_ms: 12000
     end_ms: 24000
     speed_percent: 85
+    analysis_start_ms: 12000
+    analysis_end_ms: 24000
+    tuning_hz: 442.80
+    tuning_tol_hz: 1.35
+    tempo_bpm: [96.10, 48.04, 191.40]
+    tempo_confidence: [1.00, 0.51, 0.46]
+    tempo_choice: 0
+    key: ["D:maj", "A:maj", "F#:min"]
+    key_confidence: [1.00, 0.55, 0.53]
 markers:
   - name: "Marker 1"
     ms: 5000
@@ -90,9 +104,10 @@ markers:
 - Namen stehen in doppelten Anführungszeichen; `"` und `\` werden mit `\` maskiert, Zeilenumbrüche werden zu Leerzeichen.
 - Beim Lesen werden Einträge nach Anfangszeit sortiert, Ausschnitte mit Ende vor oder gleich Anfang verworfen, fehlende Namen durch Standardnamen und das Tempo auf 50 bis 200 begrenzt.
 - Dateien der Version 1 ohne `speed_percent` werden mit 100 % gelesen.
+- Die Analysefelder sind optional (Version 1 und 2 haben keine). Tonarten stehen sprachneutral als `<Grundton>:maj` bzw. `<Grundton>:min` (Grundtöne C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B). Fehlen `analysis_start_ms` oder `analysis_end_ms`, wird die Analyse verworfen. Ältere App-Versionen überlesen die Felder (und verlieren sie beim nächsten Speichern).
 - Gespeichert wird nach jeder Änderung im Hintergrund; die Datei wird überschrieben. Schlägt das Speichern fehl, erscheint eine Meldung.
 
-**Lokale Einstellungen** (SharedPreferences der App): Akzentfarbe, Schleife an/aus, Historie, zuletzt gewählter Musikordner und der zuletzt geöffnete Unterordner im Dateibrowser.
+**Lokale Einstellungen** (SharedPreferences der App): Akzentfarbe, angebotene Analysen (Stimmung, Tempo, Tonart; Standard: alle), Schleife an/aus, Historie, zuletzt gewählter Musikordner und der zuletzt geöffnete Unterordner im Dateibrowser.
 
 ## Funktionale Anforderungen
 
@@ -155,11 +170,23 @@ Die Anforderungen sind nummeriert, damit sich Tests und Änderungswünsche darau
 | ID | Anforderung |
 | --- | --- |
 | F-50 | Ausschnitte und Marker stehen in einer gemeinsamen, scrollbaren Liste, sortiert nach Anfangszeit (bei Gleichstand Ausschnitt vor Marker). |
-| F-51 | Jeder Eintrag zeigt Symbol (Ausschnitt oder Marker), Name, Zeit(en), bei Ausschnitten das Tempo, und eine kleine Zeitleiste mit der Lage im Stück. |
+| F-51 | Jeder Eintrag zeigt Symbol (Ausschnitt oder Marker), Name, Zeit(en), bei Ausschnitten das Tempo (%) und – falls ein Tempo aus der Analyse gewählt ist – den daraus folgenden BPM-Wert (gewähltes Tempo × Tempo des Ausschnitts, ganzzahlig), und eine kleine Zeitleiste mit der Lage im Stück. |
 | F-52 | Das Bearbeiten-Popup ändert Name, Zeitpunkt beziehungsweise Anfang und Ende (Format m:ss.mmm) und bei Ausschnitten das Tempo (50 bis 200). Ungültige Eingaben werden mit Hinweis abgelehnt, das Popup bleibt offen. |
 | F-53 | Solange ein Popup offen ist, pausiert die Musik und läuft danach weiter, wenn sie vorher spielte. |
 | F-54 | Löschen eines Eintrags verlangt eine Bestätigung. |
 | F-55 | Jede Änderung wird sofort in die YAML-Datei geschrieben. |
+
+### Analyse eines Ausschnitts
+
+| ID | Anforderung |
+| --- | --- |
+| F-60 | Das Bearbeiten-Popup eines Ausschnitts hat einen Button „Analysieren“. Er analysiert den Bereich, der gerade in den Feldern Anfang und Ende steht (millisekundengenau, ab ca. 0,1 s). |
+| F-61 | In den Einstellungen ist wählbar, welche Analysen angeboten werden (Stimmung, Tempo, Tonart). Ist keine gewählt, ist der Button ausgegraut. Abgewählte Analysen werden weder berechnet noch angezeigt. |
+| F-62 | Stimmung: Kammerton a′ in Hz mit Streuung (± Hz), eine Nachkommastelle. |
+| F-63 | Tempo: bis zu drei Vorschläge in BPM, je mit Vertrauen als Prozentwert auf stufenlos eingefärbtem Feld (rot – gelb – grün). Ein Vorschlag ist wählbar, vorausgewählt ist der erste; darunter das gewählte Tempo bei der im Popup eingetragenen Geschwindigkeit. Ist der Ausschnitt für zwei Schläge zu kurz oder ohne erkennbaren Puls, erscheint ein Hinweis. |
+| F-64 | Tonart: bis zu drei Vorschläge mit derselben Vertrauensanzeige (nicht wählbar). Unter 4 s Ausschnittlänge weist ein Hinweis darauf hin, dass eher der klingende Akkord als die Tonart erkannt wird. |
+| F-65 | Die Analyse läuft im Hintergrund mit Fortschrittsanzeige; das Popup bleibt bedienbar. Schließen des Popups bricht sie ab. Ausschnitte über 10 Minuten werden nicht analysiert. |
+| F-66 | Ergebnis und Tempowahl werden erst mit „OK“ übernommen und gespeichert. Ändern sich Anfang oder Ende gegenüber dem analysierten Bereich, werden die Ergebnisse im Popup abgeschwächt mit Hinweis angezeigt und beim Speichern verworfen. |
 
 ## Bedienoberfläche
 
@@ -183,11 +210,11 @@ Alle Bedienelemente sind groß und übersichtlich. Die Hauptbedienung erfolgt ü
 
 | Element | Aufbau |
 | --- | --- |
-| Bearbeiten-Popup | Felder Name, Anfang/Zeitpunkt, Ende (nur Ausschnitt), Tempo (nur Ausschnitt); OK prüft die Eingaben, Abbrechen verwirft die Änderung (ein neu angelegter Eintrag bleibt mit seinem Standardnamen bestehen). Die Zeitfelder lassen nur Ziffern, Doppelpunkt, Punkt und Komma zu. |
+| Bearbeiten-Popup | Felder Name, Anfang/Zeitpunkt, Ende (nur Ausschnitt), Tempo (nur Ausschnitt); bei Ausschnitten darunter der Bereich „Analyse“ (siehe F-60 bis F-66); OK prüft die Eingaben, Abbrechen verwirft die Änderung (ein neu angelegter Eintrag bleibt mit seinem Standardnamen bestehen). Die Zeitfelder lassen nur Ziffern, Doppelpunkt, Punkt und Komma zu. |
 | Löschbestätigung | Frage mit dem Namen des Eintrags, Löschen oder Abbrechen. |
 | Historie | Dialog mit Liste in 22 sp; jeder Eintrag ist ein umrandeter Kasten (Linie 2 dp) mit 6 dp Außenrand, dadurch bleibt der Abstand zwischen den Einträgen konstant und gut sichtbar, auch bei Titeln mit Zeilenumbruch. |
 | Dateibrowser | Kopfzeile (72 dp) mit „Eine Ebene hoch“ und „Ordner wechseln“, Pfadanzeige, Liste mit Zeilen von mindestens 60 dp in 18 sp; Ordner und Dateien mit Symbol vor dem Namen; Hinweis bei leerem Ordner. |
-| Einstellungen | Zurückpfeil und Titel in einer 72-dp-Zeile; darunter „Akzentfarbe“ mit acht runden Farbfeldern (68 dp), das gewählte Feld trägt einen Ring; darunter „Sprache“ mit Systemsprache, Deutsch, English. Unten „Abbrechen“ und „Bestätigen“ (gleich breit, ohne Hinterlegung, Bestätigen fett in der gewählten Farbe). Änderungen gelten erst nach „Bestätigen“; Abbrechen, Zurückpfeil und Zurück-Geste verwerfen sie. Ein Sprachwechsel baut die Oberfläche neu auf, die Wiedergabe läuft weiter. |
+| Einstellungen | Zurückpfeil und Titel in einer 72-dp-Zeile; darunter „Akzentfarbe“ mit acht runden Farbfeldern (68 dp), das gewählte Feld trägt einen Ring; darunter „Sprache“ mit Systemsprache, Deutsch, English; darunter „Analysen im Ausschnitt-Popup“ mit drei Ankreuzfeldern (Stimmung, Tempo, Tonart) in der Akzentfarbe. Unten „Abbrechen“ und „Bestätigen“ (gleich breit, ohne Hinterlegung, Bestätigen fett in der gewählten Farbe). Änderungen gelten erst nach „Bestätigen“; Abbrechen, Zurückpfeil und Zurück-Geste verwerfen sie. Ein Sprachwechsel baut die Oberfläche neu auf, die Wiedergabe läuft weiter. |
 
 **Systemleisten:** Die Statusleiste bleibt sichtbar. Ihre Farbe folgt dem Hell- oder Dunkelmodus, die Symbolfarbe ist darauf abgestimmt, und der Inhalt wird unter Status- und Navigationsleiste eingerückt.
 
@@ -278,7 +305,7 @@ Die App braucht keine Speicherberechtigung und keinen Netzwerkzugriff. Dateien l
 | Robustheit | Fehler beim Öffnen und Speichern werden gemeldet. Ungültige Einträge in der YAML-Datei werden beim Lesen verworfen, ohne dass die App abstürzt. Unterstützt das Gerät die Tempoänderung nicht, spielt es mit normaler Geschwindigkeit. |
 | Reaktionsfähigkeit | Lesen und Schreiben der YAML-Datei und das Auflisten von Ordnern laufen im Hintergrund, die Oberfläche bleibt bedienbar. |
 | Datenschutz | Keine Konten, keine Werbung, keine Tracker, keine Google-Play-Dienste, kein Firebase, kein Netzwerkzugriff. Alle Daten bleiben auf dem Gerät. |
-| Lizenzen | Kotlin und AndroidX unter Apache 2.0; die Symbole sind eigene Vektorgrafiken, die Formen von Ordner, Stift und Schleife stammen aus den Material Icons (Apache 2.0). F-Droid-tauglich: nur freie Abhängigkeiten, keine Abhängigkeitsinformationen im Paket. |
+| Lizenzen | Kotlin und AndroidX unter Apache 2.0; die Audioanalyse ist eigener Code ohne Fremdbibliothek; die Symbole sind eigene Vektorgrafiken, die Formen von Ordner, Stift und Schleife stammen aus den Material Icons (Apache 2.0). F-Droid-tauglich: nur freie Abhängigkeiten, keine Abhängigkeitsinformationen im Paket. |
 | Sprache | Oberfläche, Meldungen und Benachrichtigung auf Englisch oder Deutsch (auch auf Android 7–12 einschließlich Dienst). |
 
 ## Build, Test und Verteilung
@@ -304,6 +331,10 @@ Der Release-Build ist mit Code- und Ressourcenschrumpfung konfiguriert; die Sign
 - [ ] Bildschirm sperren während der Wiedergabe: Musik läuft weiter, Benachrichtigung mit Pause-Knopf
 - [ ] Berührung auf der Markerleiste setzt die Position
 - [ ] Bearbeiten-Popup: ungültige Zeiten und Tempo werden abgelehnt
+- [ ] Analyse mit MP3, FLAC, OGG und M4A; Ergebnisse mit dem Prototyp `repio_analyse.py` vergleichen
+- [ ] Analyse sehr kurzer (0,1–1 s) und langer (mehrere Minuten) Ausschnitte; Abbruch durch Schließen des Popups
+- [ ] Tempovorschlag wählen, OK: Liste zeigt BPM passend zur Ausschnitt-Geschwindigkeit; Anfang ändern: Ergebnis verfällt
+- [ ] Einstellungen: Analysen einzeln abwählen; alle abgewählt: Button ausgegraut
 - [ ] Historie mit mehr als 20 Stücken; Neustart öffnet das letzte Stück
 - [ ] YAML-Datei von Hand ändern, Stück neu öffnen
 - [ ] Dunkelmodus, Statusleiste und Akzentfarben prüfen

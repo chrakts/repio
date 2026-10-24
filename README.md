@@ -20,10 +20,11 @@ Voraussetzungen: JDK 17, Android SDK (cmdline-tools, platform 35, build-tools), 
 - `Engine.kt` – Wiedergabe, Tempo, Ausschnitte/Marker (prozessweit, überlebt die Activity)
 - `PlaybackService.kt` – Vordergrunddienst (mediaPlayback) für Wiedergabe bei gesperrtem Gerät
 - `MainActivity.kt` – Oberfläche, `TimelineView.kt` – Zeitleiste (mit Touch-Bedienung)
-- `Settings.kt` – Einstellungen (Akzentfarbe, Sprache, Bestätigen/Abbrechen) und `SettingsActivity`
+- `Settings.kt` – Einstellungen (Akzentfarbe, Sprache, angebotene Analysen, Bestätigen/Abbrechen) und `SettingsActivity`
+- `AnalysisPanel.kt`, `AudioDecoder.kt`, `AudioAnalysis.java` – Analyse eines Ausschnitts (Stimmung, Tempo, Tonart): Popup-Bereich, Dekodierung, Rechenkern
 - `Lang.kt` – Sprachwahl (Systemsprache, Deutsch, Englisch)
 - `FileBrowserActivity.kt` – Dateiwahl (Storage Access Framework)
-- `Yaml.kt` – Format der Begleitdatei (Version 2 mit `speed_percent`; Version 1 wird weiter gelesen)
+- `Yaml.kt` – Format der Begleitdatei (Version 3 mit Analyseergebnis; Versionen 1 und 2 werden weiter gelesen)
 - Symbole: eigene Vektorgrafiken in `res/drawable/` (Material-Icons-Pfade für Ordner, Stift und Schleife: Apache 2.0)
 
 ## Store-Texte und Bilder
