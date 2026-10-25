@@ -1,0 +1,3 @@
+• New: analysis of sections – tuning (concert pitch), tempo in BPM and key, each with a confidence indicator
+• The chosen tempo is shown in the list, converted to the section’s playback speed
+• Choose in the settings which analyses are offered

@@ -1,0 +1,3 @@
+• Neu: Analyse von Ausschnitten – Stimmung (Kammerton), Tempo in BPM und Tonart, jeweils mit Vertrauensanzeige
+• Gewähltes Tempo erscheint in der Liste, umgerechnet auf die Geschwindigkeit des Ausschnitts
+• In den Einstellungen wählbar, welche Analysen angeboten werden

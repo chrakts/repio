@@ -11,6 +11,11 @@ Tempo
 • Eigenes Tempo pro Ausschnitt – z. B. das Solo mit 70 %, den Rest in Originaltempo
 • Mit einem Tipp zurück auf 100 %
 
+Analyse
+• Für jeden Ausschnitt: Stimmung (Kammerton, z. B. 442 Hz), Tempo in BPM und Tonart
+• Tempo- und Tonartvorschläge mit farbiger Vertrauensanzeige; das gewählte Tempo erscheint in der Liste, umgerechnet auf die Übungsgeschwindigkeit
+• Läuft vollständig auf dem Gerät
+
 Fürs Üben gemacht
 • Große Bedienelemente, auch mit Instrument in der Hand gut zu treffen
 • Wiedergabe läuft bei gesperrtem Bildschirm weiter

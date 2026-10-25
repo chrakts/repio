@@ -1,0 +1,1749 @@
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-24 13:23:54.856250287 +0000
++++ b/README.md	2026-10-24 13:23:54.862753295 +0000
+@@ -20,10 +20,11 @@
+ - `Engine.kt` – Wiedergabe, Tempo, Ausschnitte/Marker (prozessweit, überlebt die Activity)
+ - `PlaybackService.kt` – Vordergrunddienst (mediaPlayback) für Wiedergabe bei gesperrtem Gerät
+ - `MainActivity.kt` – Oberfläche, `TimelineView.kt` – Zeitleiste (mit Touch-Bedienung)
+-- `Settings.kt` – Einstellungen (Akzentfarbe, Sprache, Bestätigen/Abbrechen) und `SettingsActivity`
++- `Settings.kt` – Einstellungen (Akzentfarbe, Sprache, angebotene Analysen, Bestätigen/Abbrechen) und `SettingsActivity`
++- `AnalysisPanel.kt`, `AudioDecoder.kt`, `AudioAnalysis.java` – Analyse eines Ausschnitts (Stimmung, Tempo, Tonart): Popup-Bereich, Dekodierung, Rechenkern
+ - `Lang.kt` – Sprachwahl (Systemsprache, Deutsch, Englisch)
+ - `FileBrowserActivity.kt` – Dateiwahl (Storage Access Framework)
+-- `Yaml.kt` – Format der Begleitdatei (Version 2 mit `speed_percent`; Version 1 wird weiter gelesen)
++- `Yaml.kt` – Format der Begleitdatei (Version 3 mit Analyseergebnis; Versionen 1 und 2 werden weiter gelesen)
+ - Symbole: eigene Vektorgrafiken in `res/drawable/` (Material-Icons-Pfade für Ordner, Stift und Schleife: Apache 2.0)
+ 
+ ## Store-Texte und Bilder
+diff -ruN "a/Spezifikation #U00dcbungsplayer (Android-App).md" "b/Spezifikation #U00dcbungsplayer (Android-App).md"
+--- "a/Spezifikation #U00dcbungsplayer (Android-App).md"	2026-10-24 13:23:54.856272535 +0000
++++ "b/Spezifikation #U00dcbungsplayer (Android-App).md"	2026-10-24 13:23:54.862833578 +0000
+@@ -15,7 +15,8 @@
+ - Ausschnitte: Start und Ende setzen, automatischer Name, nachträglich umbenennen und zeitlich bearbeiten, einmalig oder in Schleife abspielen, eigenes Tempo je Ausschnitt.
+ - Marker: benannte Zeitpunkte, die sich direkt anspringen lassen.
+ - Tempo: 50 bis 200 % in 2-%-Schritten, die Tonhöhe bleibt gleich, schnelles Zurücksetzen auf 100 %.
+-- Begleitdatei: Ausschnitte und Marker liegen als YAML-Datei im selben Ordner wie das Musikstück.
++- Analyse eines Ausschnitts: mittlere Stimmung (Kammerton), Tempo in BPM und Tonart, jeweils mit Vertrauensangabe.
++- Begleitdatei: Ausschnitte (samt Analyseergebnis) und Marker liegen als YAML-Datei im selben Ordner wie das Musikstück.
+ - Historie: die letzten 20 Stücke; das zuletzt gespielte ist beim Start vorgewählt.
+ - Wiedergabe läuft bei gesperrtem Smartphone weiter.
+ 
+@@ -53,7 +54,10 @@
+ | `MainActivity.kt` | Hauptbildschirm, Liste, Popups, Anzeige-Aktualisierung alle 100 ms |
+ | `TimelineView.kt` | Zeitleiste mit Touch-Bedienung; kleine Variante in der Liste |
+ | `FileBrowserActivity.kt` | Dateibrowser im freigegebenen Ordner |
+-| `Settings.kt` | Akzentfarbe und Einstellungsbildschirm |
++| `Settings.kt` | Akzentfarbe, angebotene Analysen und Einstellungsbildschirm |
++| `AnalysisPanel.kt` | Analyse-Bereich im Bearbeiten-Popup (Start, Fortschritt, Ergebnisse, Tempowahl) |
++| `AudioDecoder.kt` | Samplegenaues Dekodieren eines Zeitbereichs (MediaExtractor/MediaCodec) in Mono |
++| `AudioAnalysis.java` | Rechenkern ohne Android-Abhängigkeiten: Stimmung, Tempo, Tonart (Java, damit er sich auf dem PC gegen den Prototyp prüfen lässt) |
+ | `Lang.kt` | Sprachwahl (AppCompat-Spracheinstellung pro App) |
+ | `Model.kt` | Segment, Marker, Track, Historie, Zeitformate |
+ | `Yaml.kt` | Lesen und Schreiben der Begleitdatei |
+@@ -65,22 +69,32 @@
+ 
+ | Objekt | Felder | Regeln |
+ | --- | --- | --- |
+-| Ausschnitt (Segment) | Name, Anfang (ms), Ende (ms), Tempo (%) | Ende liegt mindestens 100 ms nach dem Anfang; beides innerhalb der Stücklänge; Tempo 50 bis 200, Standard 100 |
++| Ausschnitt (Segment) | Name, Anfang (ms), Ende (ms), Tempo (%), optional Analyse | Ende liegt mindestens 100 ms nach dem Anfang; beides innerhalb der Stücklänge; Tempo 50 bis 200, Standard 100 |
++| Analyse | Analysierter Bereich (Anfang, Ende), Stimmung (Hz) mit Streuung (± Hz), bis zu drei Tempovorschläge (BPM, Vertrauen 0–1) mit gewähltem Vorschlag, bis zu drei Tonartvorschläge (Grundton, Dur/Moll, Vertrauen) | Gilt nur, solange Anfang und Ende des Ausschnitts dem analysierten Bereich entsprechen; sonst verfällt sie beim Speichern |
+ | Marker | Name, Zeitpunkt (ms) | Zeitpunkt innerhalb der Stücklänge |
+ | Musikstück (Track) | Ordnerbaum, Dokument-ID, Ordner-ID des Stücks, Dateiname | Wird in der Historie gespeichert; der Ordner bestimmt, wo die YAML-Datei liegt |
+ | Historie | Liste von Tracks, neueste zuerst | Höchstens 20 Einträge, ohne Duplikate (gleicher Ordnerbaum und gleiche Dokument-ID) |
+ 
+ Standardnamen lauten „Ausschnitt N“ und „Marker N“, wobei N die kleinste noch freie Zahl ist.
+ 
+-**YAML-Format (Version 2)**
++**YAML-Format (Version 3)**
+ 
+ ```yaml
+-version: 2
++version: 3
+ segments:
+   - name: "Ausschnitt 1"
+     start_ms: 12000
+     end_ms: 24000
+     speed_percent: 85
++    analysis_start_ms: 12000
++    analysis_end_ms: 24000
++    tuning_hz: 442.80
++    tuning_tol_hz: 1.35
++    tempo_bpm: [96.10, 48.04, 191.40]
++    tempo_confidence: [1.00, 0.51, 0.46]
++    tempo_choice: 0
++    key: ["D:maj", "A:maj", "F#:min"]
++    key_confidence: [1.00, 0.55, 0.53]
+ markers:
+   - name: "Marker 1"
+     ms: 5000
+@@ -90,9 +104,10 @@
+ - Namen stehen in doppelten Anführungszeichen; `"` und `\` werden mit `\` maskiert, Zeilenumbrüche werden zu Leerzeichen.
+ - Beim Lesen werden Einträge nach Anfangszeit sortiert, Ausschnitte mit Ende vor oder gleich Anfang verworfen, fehlende Namen durch Standardnamen und das Tempo auf 50 bis 200 begrenzt.
+ - Dateien der Version 1 ohne `speed_percent` werden mit 100 % gelesen.
++- Die Analysefelder sind optional (Version 1 und 2 haben keine). Tonarten stehen sprachneutral als `<Grundton>:maj` bzw. `<Grundton>:min` (Grundtöne C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B). Fehlen `analysis_start_ms` oder `analysis_end_ms`, wird die Analyse verworfen. Ältere App-Versionen überlesen die Felder (und verlieren sie beim nächsten Speichern).
+ - Gespeichert wird nach jeder Änderung im Hintergrund; die Datei wird überschrieben. Schlägt das Speichern fehl, erscheint eine Meldung.
+ 
+-**Lokale Einstellungen** (SharedPreferences der App): Akzentfarbe, Schleife an/aus, Historie, zuletzt gewählter Musikordner und der zuletzt geöffnete Unterordner im Dateibrowser.
++**Lokale Einstellungen** (SharedPreferences der App): Akzentfarbe, angebotene Analysen (Stimmung, Tempo, Tonart; Standard: alle), Schleife an/aus, Historie, zuletzt gewählter Musikordner und der zuletzt geöffnete Unterordner im Dateibrowser.
+ 
+ ## Funktionale Anforderungen
+ 
+@@ -155,12 +170,24 @@
+ | ID | Anforderung |
+ | --- | --- |
+ | F-50 | Ausschnitte und Marker stehen in einer gemeinsamen, scrollbaren Liste, sortiert nach Anfangszeit (bei Gleichstand Ausschnitt vor Marker). |
+-| F-51 | Jeder Eintrag zeigt Symbol (Ausschnitt oder Marker), Name, Zeit(en), bei Ausschnitten das Tempo, und eine kleine Zeitleiste mit der Lage im Stück. |
++| F-51 | Jeder Eintrag zeigt Symbol (Ausschnitt oder Marker), Name, Zeit(en), bei Ausschnitten das Tempo (%) und – falls ein Tempo aus der Analyse gewählt ist – den daraus folgenden BPM-Wert (gewähltes Tempo × Tempo des Ausschnitts, ganzzahlig), und eine kleine Zeitleiste mit der Lage im Stück. |
+ | F-52 | Das Bearbeiten-Popup ändert Name, Zeitpunkt beziehungsweise Anfang und Ende (Format m:ss.mmm) und bei Ausschnitten das Tempo (50 bis 200). Ungültige Eingaben werden mit Hinweis abgelehnt, das Popup bleibt offen. |
+ | F-53 | Solange ein Popup offen ist, pausiert die Musik und läuft danach weiter, wenn sie vorher spielte. |
+ | F-54 | Löschen eines Eintrags verlangt eine Bestätigung. |
+ | F-55 | Jede Änderung wird sofort in die YAML-Datei geschrieben. |
+ 
++### Analyse eines Ausschnitts
++
++| ID | Anforderung |
++| --- | --- |
++| F-60 | Das Bearbeiten-Popup eines Ausschnitts hat einen Button „Analysieren“. Er analysiert den Bereich, der gerade in den Feldern Anfang und Ende steht (millisekundengenau, ab ca. 0,1 s). |
++| F-61 | In den Einstellungen ist wählbar, welche Analysen angeboten werden (Stimmung, Tempo, Tonart). Ist keine gewählt, ist der Button ausgegraut. Abgewählte Analysen werden weder berechnet noch angezeigt. |
++| F-62 | Stimmung: Kammerton a′ in Hz mit Streuung (± Hz), eine Nachkommastelle. |
++| F-63 | Tempo: bis zu drei Vorschläge in BPM, je mit Vertrauen als Prozentwert auf stufenlos eingefärbtem Feld (rot – gelb – grün). Ein Vorschlag ist wählbar, vorausgewählt ist der erste; darunter das gewählte Tempo bei der im Popup eingetragenen Geschwindigkeit. Ist der Ausschnitt für zwei Schläge zu kurz oder ohne erkennbaren Puls, erscheint ein Hinweis. |
++| F-64 | Tonart: bis zu drei Vorschläge mit derselben Vertrauensanzeige (nicht wählbar). Unter 4 s Ausschnittlänge weist ein Hinweis darauf hin, dass eher der klingende Akkord als die Tonart erkannt wird. |
++| F-65 | Die Analyse läuft im Hintergrund mit Fortschrittsanzeige; das Popup bleibt bedienbar. Schließen des Popups bricht sie ab. Ausschnitte über 10 Minuten werden nicht analysiert. |
++| F-66 | Ergebnis und Tempowahl werden erst mit „OK“ übernommen und gespeichert. Ändern sich Anfang oder Ende gegenüber dem analysierten Bereich, werden die Ergebnisse im Popup abgeschwächt mit Hinweis angezeigt und beim Speichern verworfen. |
++
+ ## Bedienoberfläche
+ 
+ Alle Bedienelemente sind groß und übersichtlich. Die Hauptbedienung erfolgt über Symbolschaltflächen. Texte gibt es nur für die Überschriften der Tempo- und der Setzen-Zeile, für Titel, Zeiten und Listeninhalte sowie auf den Textschaltflächen der Dialoge (OK, Abbrechen, Löschen).
+@@ -183,11 +210,11 @@
+ 
+ | Element | Aufbau |
+ | --- | --- |
+-| Bearbeiten-Popup | Felder Name, Anfang/Zeitpunkt, Ende (nur Ausschnitt), Tempo (nur Ausschnitt); OK prüft die Eingaben, Abbrechen verwirft die Änderung (ein neu angelegter Eintrag bleibt mit seinem Standardnamen bestehen). Die Zeitfelder lassen nur Ziffern, Doppelpunkt, Punkt und Komma zu. |
++| Bearbeiten-Popup | Felder Name, Anfang/Zeitpunkt, Ende (nur Ausschnitt), Tempo (nur Ausschnitt); bei Ausschnitten darunter der Bereich „Analyse“ (siehe F-60 bis F-66); OK prüft die Eingaben, Abbrechen verwirft die Änderung (ein neu angelegter Eintrag bleibt mit seinem Standardnamen bestehen). Die Zeitfelder lassen nur Ziffern, Doppelpunkt, Punkt und Komma zu. |
+ | Löschbestätigung | Frage mit dem Namen des Eintrags, Löschen oder Abbrechen. |
+ | Historie | Dialog mit Liste in 22 sp; jeder Eintrag ist ein umrandeter Kasten (Linie 2 dp) mit 6 dp Außenrand, dadurch bleibt der Abstand zwischen den Einträgen konstant und gut sichtbar, auch bei Titeln mit Zeilenumbruch. |
+ | Dateibrowser | Kopfzeile (72 dp) mit „Eine Ebene hoch“ und „Ordner wechseln“, Pfadanzeige, Liste mit Zeilen von mindestens 60 dp in 18 sp; Ordner und Dateien mit Symbol vor dem Namen; Hinweis bei leerem Ordner. |
+-| Einstellungen | Zurückpfeil und Titel in einer 72-dp-Zeile; darunter „Akzentfarbe“ mit acht runden Farbfeldern (68 dp), das gewählte Feld trägt einen Ring; darunter „Sprache“ mit Systemsprache, Deutsch, English. Unten „Abbrechen“ und „Bestätigen“ (gleich breit, ohne Hinterlegung, Bestätigen fett in der gewählten Farbe). Änderungen gelten erst nach „Bestätigen“; Abbrechen, Zurückpfeil und Zurück-Geste verwerfen sie. Ein Sprachwechsel baut die Oberfläche neu auf, die Wiedergabe läuft weiter. |
++| Einstellungen | Zurückpfeil und Titel in einer 72-dp-Zeile; darunter „Akzentfarbe“ mit acht runden Farbfeldern (68 dp), das gewählte Feld trägt einen Ring; darunter „Sprache“ mit Systemsprache, Deutsch, English; darunter „Analysen im Ausschnitt-Popup“ mit drei Ankreuzfeldern (Stimmung, Tempo, Tonart) in der Akzentfarbe. Unten „Abbrechen“ und „Bestätigen“ (gleich breit, ohne Hinterlegung, Bestätigen fett in der gewählten Farbe). Änderungen gelten erst nach „Bestätigen“; Abbrechen, Zurückpfeil und Zurück-Geste verwerfen sie. Ein Sprachwechsel baut die Oberfläche neu auf, die Wiedergabe läuft weiter. |
+ 
+ **Systemleisten:** Die Statusleiste bleibt sichtbar. Ihre Farbe folgt dem Hell- oder Dunkelmodus, die Symbolfarbe ist darauf abgestimmt, und der Inhalt wird unter Status- und Navigationsleiste eingerückt.
+ 
+@@ -278,7 +305,7 @@
+ | Robustheit | Fehler beim Öffnen und Speichern werden gemeldet. Ungültige Einträge in der YAML-Datei werden beim Lesen verworfen, ohne dass die App abstürzt. Unterstützt das Gerät die Tempoänderung nicht, spielt es mit normaler Geschwindigkeit. |
+ | Reaktionsfähigkeit | Lesen und Schreiben der YAML-Datei und das Auflisten von Ordnern laufen im Hintergrund, die Oberfläche bleibt bedienbar. |
+ | Datenschutz | Keine Konten, keine Werbung, keine Tracker, keine Google-Play-Dienste, kein Firebase, kein Netzwerkzugriff. Alle Daten bleiben auf dem Gerät. |
+-| Lizenzen | Kotlin und AndroidX unter Apache 2.0; die Symbole sind eigene Vektorgrafiken, die Formen von Ordner, Stift und Schleife stammen aus den Material Icons (Apache 2.0). F-Droid-tauglich: nur freie Abhängigkeiten, keine Abhängigkeitsinformationen im Paket. |
++| Lizenzen | Kotlin und AndroidX unter Apache 2.0; die Audioanalyse ist eigener Code ohne Fremdbibliothek; die Symbole sind eigene Vektorgrafiken, die Formen von Ordner, Stift und Schleife stammen aus den Material Icons (Apache 2.0). F-Droid-tauglich: nur freie Abhängigkeiten, keine Abhängigkeitsinformationen im Paket. |
+ | Sprache | Oberfläche, Meldungen und Benachrichtigung auf Englisch oder Deutsch (auch auf Android 7–12 einschließlich Dienst). |
+ 
+ ## Build, Test und Verteilung
+@@ -304,6 +331,10 @@
+ - [ ] Bildschirm sperren während der Wiedergabe: Musik läuft weiter, Benachrichtigung mit Pause-Knopf
+ - [ ] Berührung auf der Markerleiste setzt die Position
+ - [ ] Bearbeiten-Popup: ungültige Zeiten und Tempo werden abgelehnt
++- [ ] Analyse mit MP3, FLAC, OGG und M4A; Ergebnisse mit dem Prototyp `repio_analyse.py` vergleichen
++- [ ] Analyse sehr kurzer (0,1–1 s) und langer (mehrere Minuten) Ausschnitte; Abbruch durch Schließen des Popups
++- [ ] Tempovorschlag wählen, OK: Liste zeigt BPM passend zur Ausschnitt-Geschwindigkeit; Anfang ändern: Ergebnis verfällt
++- [ ] Einstellungen: Analysen einzeln abwählen; alle abgewählt: Button ausgegraut
+ - [ ] Historie mit mehr als 20 Stücken; Neustart öffnet das letzte Stück
+ - [ ] YAML-Datei von Hand ändern, Stück neu öffnen
+ - [ ] Dunkelmodus, Statusleiste und Akzentfarben prüfen
+diff -ruN a/app/src/main/java/app/uebungsplayer/AnalysisPanel.kt b/app/src/main/java/app/uebungsplayer/AnalysisPanel.kt
+--- a/app/src/main/java/app/uebungsplayer/AnalysisPanel.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/app/uebungsplayer/AnalysisPanel.kt	2026-10-24 13:23:54.864113255 +0000
+@@ -0,0 +1,373 @@
++package app.uebungsplayer
++
++import android.content.res.ColorStateList
++import android.graphics.Color
++import android.graphics.drawable.GradientDrawable
++import android.net.Uri
++import android.os.Handler
++import android.os.Looper
++import android.text.Editable
++import android.text.TextWatcher
++import android.view.Gravity
++import android.view.View
++import android.widget.Button
++import android.widget.EditText
++import android.widget.LinearLayout
++import android.widget.ProgressBar
++import android.widget.TextView
++import android.widget.Toast
++import androidx.appcompat.app.AppCompatActivity
++import androidx.appcompat.widget.AppCompatRadioButton
++import androidx.core.widget.CompoundButtonCompat
++import java.util.concurrent.Executors
++import java.util.concurrent.atomic.AtomicBoolean
++import kotlin.math.roundToInt
++
++/**
++ * Analyse-Bereich im Bearbeiten-Popup eines Ausschnitts: Button „Analysieren“, Fortschritt und
++ * Ergebnisse (Stimmung, drei Tempo- und drei Tonartvorschläge mit Vertrauensfarbe).
++ *
++ * Analysiert wird der Bereich, der gerade in den Zeitfeldern steht. Das Ergebnis wird erst mit
++ * „OK“ übernommen ([result]); passt es dann nicht mehr zu Anfang und Ende, verfällt es.
++ */
++class AnalysisPanel(
++    private val act: AppCompatActivity,
++    parent: LinearLayout,
++    seg: Segment,
++    private val startF: EditText,
++    private val endF: EditText,
++    private val speedF: EditText
++) {
++    /** Hinweise, die nur direkt nach einer Analyse gezeigt werden (nicht gespeichert). */
++    private class Notes(val tuningFailed: Boolean, val tempoMsg: Int?, val keyFailed: Boolean)
++
++    private val dp = act.resources.displayMetrics.density
++    private val handler = Handler(Looper.getMainLooper())
++    private var pending: SegmentAnalysis? = seg.validAnalysis()
++    private var notes: Notes? = null
++    private var cancel: AtomicBoolean? = null
++    private var busy = false
++
++    private val button: Button
++    private val progress: ProgressBar
++    private val status: TextView
++    private val stale: TextView
++    private val results = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
++    private var tempoRadios: List<AppCompatRadioButton> = emptyList()
++    private var atSpeed: TextView? = null
++
++    init {
++        parent.addView(label(R.string.analysis_head).apply { setPadding(0, px(20), 0, 0) })
++
++        val row = LinearLayout(act).apply {
++            orientation = LinearLayout.HORIZONTAL
++            gravity = Gravity.CENTER_VERTICAL
++        }
++        button = Button(act, null, android.R.attr.borderlessButtonStyle).apply {
++            setText(R.string.analyze)
++            isAllCaps = false
++            textSize = 18f
++            setTextColor(Settings.accent)
++            setOnClickListener { start() }
++        }
++        progress = ProgressBar(act).apply {
++            isIndeterminate = true
++            indeterminateTintList = ColorStateList.valueOf(Settings.accent)
++            visibility = View.GONE
++            layoutParams = LinearLayout.LayoutParams(px(28), px(28)).apply { marginStart = px(8) }
++        }
++        status = TextView(act).apply {
++            setText(R.string.analyzing)
++            textSize = 14f
++            visibility = View.GONE
++            setPadding(px(8), 0, 0, 0)
++        }
++        row.addView(button)
++        row.addView(progress)
++        row.addView(status)
++        parent.addView(row)
++
++        stale = TextView(act).apply {
++            setText(R.string.analysis_stale)
++            textSize = 14f
++            visibility = View.GONE
++        }
++        parent.addView(stale)
++        parent.addView(results)
++
++        val watcher = object : TextWatcher {
++            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
++            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
++            override fun afterTextChanged(s: Editable?) = updateStale()
++        }
++        startF.addTextChangedListener(watcher)
++        endF.addTextChangedListener(watcher)
++        speedF.addTextChangedListener(object : TextWatcher {
++            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
++            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
++            override fun afterTextChanged(s: Editable?) = updateAtSpeed()
++        })
++
++        updateButton()
++        render()
++        updateStale()
++    }
++
++    /** Ergebnis für „OK“ (inklusive gewähltem Tempo); der Aufrufer prüft, ob es zum Bereich passt. */
++    fun result(): SegmentAnalysis? = pending
++
++    /** Popup geschlossen: laufende Analyse abbrechen, ihr Ergebnis verwerfen. */
++    fun cancel() {
++        cancel?.set(true)
++    }
++
++    // ------------------------------------------------------------ Analyse starten
++
++    private fun start() {
++        val t0 = parseTime(startF.text.toString())
++        val t1 = parseTime(endF.text.toString())
++        if (t0 == null || t1 == null || t1 > Engine.duration() || t1 - t0 < 100) {
++            toast(R.string.err_range)
++            return
++        }
++        if (t1 - t0 > MAX_MS) {
++            toast(R.string.analysis_too_long)
++            return
++        }
++        val uri: Uri = Engine.trackUri() ?: return
++        val doTuning = Settings.analyzeTuning
++        val doTempo = Settings.analyzeTempo
++        val doKey = Settings.analyzeKey
++        cancel?.set(true)
++        val c = AtomicBoolean(false)
++        cancel = c
++        setBusy(true)
++        val appCtx = act.applicationContext
++
++        EXECUTOR.execute {
++            var res: AudioAnalysis.Result? = null
++            var failed = false
++            try {
++                val pcm = AudioDecoder.decode(appCtx, uri, t0, t1) { c.get() }
++                val x = AudioAnalysis.decimate(pcm.samples, pcm.sampleRate)
++                val sr = AudioAnalysis.decimatedRate(pcm.sampleRate)
++                res = AudioAnalysis.analyze(x, sr, doTuning, doTempo, doKey) { c.get() }
++            } catch (e: AudioAnalysis.CancelledException) {
++                // Popup geschlossen oder neue Analyse gestartet
++            } catch (e: Exception) {
++                failed = true
++            } catch (e: OutOfMemoryError) {
++                failed = true
++            }
++            handler.post {
++                if (!c.get()) finish(res, failed, t0, t1, doTuning, doKey)
++            }
++        }
++    }
++
++    private fun finish(res: AudioAnalysis.Result?, failed: Boolean, t0: Int, t1: Int, doTuning: Boolean, doKey: Boolean) {
++        setBusy(false)
++        if (failed || res == null) {
++            toast(R.string.analysis_failed)
++            return
++        }
++        when {
++            res.tooShort -> toast(R.string.analysis_too_short)
++            res.silent -> toast(R.string.analysis_silent)
++            else -> {
++                pending = SegmentAnalysis(
++                    startMs = t0,
++                    endMs = t1,
++                    tuningHz = res.tuningHz.takeUnless { it.isNaN() },
++                    tuningTolHz = res.tuningTolHz.takeUnless { it.isNaN() },
++                    tempos = res.tempo?.map { TempoEstimate(it.bpm, it.confidence) } ?: emptyList(),
++                    tempoChoice = 0,
++                    keys = res.keys?.map { KeyEstimate(it.tonic, it.minor, it.confidence) } ?: emptyList()
++                )
++                notes = Notes(
++                    tuningFailed = doTuning && res.tuningHz.isNaN(),
++                    tempoMsg = when {
++                        res.tempoTooShort -> R.string.tempo_too_short
++                        res.tempoNoPulse -> R.string.tempo_no_pulse
++                        else -> null
++                    },
++                    keyFailed = doKey && res.keys == null
++                )
++                render()
++                updateStale()
++            }
++        }
++    }
++
++    // ------------------------------------------------------------ Anzeige
++
++    private fun setBusy(b: Boolean) {
++        busy = b
++        progress.visibility = if (b) View.VISIBLE else View.GONE
++        status.visibility = if (b) View.VISIBLE else View.GONE
++        updateButton()
++    }
++
++    /** Ausgegraut, wenn in den Einstellungen keine Analyse gewählt ist (oder eine gerade läuft). */
++    private fun updateButton() {
++        val enabled = Settings.anyAnalysis && !busy
++        button.isEnabled = enabled
++        button.alpha = if (enabled) 1f else 0.4f
++    }
++
++    private fun render() {
++        results.removeAllViews()
++        tempoRadios = emptyList()
++        atSpeed = null
++        val a = pending ?: return
++        val n = notes
++
++        if (Settings.analyzeTuning) {
++            if (a.tuningHz != null) {
++                results.addView(label(R.string.an_tuning))
++                results.addView(value(act.getString(R.string.tuning_value, a.tuningHz, a.tuningTolHz ?: 0.0)))
++            } else if (n?.tuningFailed == true) {
++                results.addView(label(R.string.an_tuning))
++                results.addView(value(act.getString(R.string.not_determinable)))
++            }
++        }
++
++        if (Settings.analyzeTempo) {
++            if (a.tempos.isNotEmpty()) {
++                results.addView(label(R.string.an_tempo))
++                val radios = ArrayList<AppCompatRadioButton>()
++                a.tempos.forEachIndexed { i, t ->
++                    val rb = AppCompatRadioButton(act).apply {
++                        text = act.getString(R.string.tempo_value, t.bpm)
++                        textSize = 18f
++                        isChecked = i == a.tempoChoice
++                        CompoundButtonCompat.setButtonTintList(this, ColorStateList.valueOf(Settings.accent))
++                        setOnClickListener { choose(i) }
++                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
++                    }
++                    radios.add(rb)
++                    results.addView(candidateRow(rb, t.confidence))
++                }
++                tempoRadios = radios
++                val tv = TextView(act).apply { textSize = 14f }
++                atSpeed = tv
++                results.addView(tv)
++                updateAtSpeed()
++            } else if (n?.tempoMsg != null) {
++                results.addView(label(R.string.an_tempo))
++                results.addView(value(act.getString(n.tempoMsg)))
++            }
++        }
++
++        if (Settings.analyzeKey) {
++            if (a.keys.isNotEmpty()) {
++                results.addView(label(R.string.an_key))
++                for (k in a.keys) {
++                    val tv = TextView(act).apply {
++                        text = keyName(k)
++                        textSize = 18f
++                        setPadding(px(8), px(6), 0, px(6))
++                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
++                    }
++                    results.addView(candidateRow(tv, k.confidence))
++                }
++                if (a.endMs - a.startMs < 4000) {
++                    results.addView(TextView(act).apply { setText(R.string.key_short_hint); textSize = 14f })
++                }
++            } else if (n?.keyFailed == true) {
++                results.addView(label(R.string.an_key))
++                results.addView(value(act.getString(R.string.not_determinable)))
++            }
++        }
++    }
++
++    private fun choose(i: Int) {
++        val a = pending ?: return
++        pending = a.copy(tempoChoice = i)
++        tempoRadios.forEachIndexed { j, rb -> rb.isChecked = j == i }
++        updateAtSpeed()
++    }
++
++    /** „Bei 85 %: 81,7 BPM“ – folgt dem Tempofeld des Popups. */
++    private fun updateAtSpeed() {
++        val tv = atSpeed ?: return
++        val sp = speedF.text.toString().toIntOrNull()?.takeIf { it in 50..200 }
++        val bpm = pending?.chosenBpm
++        if (sp == null || bpm == null) {
++            tv.visibility = View.GONE
++        } else {
++            tv.visibility = View.VISIBLE
++            tv.text = act.getString(R.string.tempo_at_speed, sp, bpm * sp / 100.0)
++        }
++    }
++
++    /** Ergebnisse abschwächen, sobald Anfang oder Ende nicht mehr zum analysierten Bereich passen. */
++    private fun updateStale() {
++        val a = pending
++        val ok = a == null || run {
++            val t0 = parseTime(startF.text.toString())
++            val t1 = parseTime(endF.text.toString())
++            t0 != null && t1 != null && a.matches(t0, t1)
++        }
++        stale.visibility = if (ok) View.GONE else View.VISIBLE
++        results.alpha = if (ok) 1f else 0.4f
++    }
++
++    private fun keyName(k: KeyEstimate): String {
++        val names = act.resources.getStringArray(if (k.minor) R.array.key_minor_names else R.array.key_major_names)
++        return act.getString(if (k.minor) R.string.key_minor else R.string.key_major, names[k.tonic])
++    }
++
++    private fun candidateRow(content: View, confidence: Double): LinearLayout =
++        LinearLayout(act).apply {
++            orientation = LinearLayout.HORIZONTAL
++            gravity = Gravity.CENTER_VERTICAL
++            addView(content)
++            addView(chip(confidence))
++        }
++
++    /** Vertrauen als Prozentwert auf stufenlos eingefärbtem Feld (rot – gelb – grün). */
++    private fun chip(confidence: Double): TextView {
++        val pct = (confidence * 100).roundToInt()
++        return TextView(act).apply {
++            text = act.getString(R.string.confidence_value, pct)
++            contentDescription = act.getString(R.string.cd_confidence, pct)
++            textSize = 14f
++            setTextColor(Color.BLACK)
++            gravity = Gravity.CENTER
++            background = GradientDrawable().apply {
++                cornerRadius = 14 * dp
++                setColor(confidenceColor(confidence))
++            }
++            layoutParams = LinearLayout.LayoutParams(px(64), px(28)).apply { marginStart = px(8) }
++        }
++    }
++
++    private fun label(res: Int) = TextView(act).apply {
++        setText(res)
++        textSize = 14f
++        setPadding(0, px(8), 0, 0)
++    }
++
++    private fun value(text: String) = TextView(act).apply {
++        this.text = text
++        textSize = 18f
++        setPadding(px(8), px(4), 0, px(4))
++    }
++
++    private fun px(v: Int) = (v * dp).toInt()
++
++    private fun toast(res: Int) = Toast.makeText(act, res, Toast.LENGTH_SHORT).show()
++
++    companion object {
++        /** Längster analysierbarer Ausschnitt (Speicherbedarf der dekodierten Samples). */
++        private const val MAX_MS = 10 * 60 * 1000
++
++        /** Eigener Hintergrundthread; eine neue Analyse bricht die vorige ab. */
++        private val EXECUTOR = Executors.newSingleThreadExecutor()
++
++        /** Farbton von Rot (0) über Gelb (0,5) nach Grün (1); mittlere Sättigung, gut lesbar mit Schwarz. */
++        fun confidenceColor(c: Double): Int =
++            Color.HSVToColor(floatArrayOf((120.0 * c.coerceIn(0.0, 1.0)).toFloat(), 0.6f, 0.9f))
++    }
++}
+diff -ruN a/app/src/main/java/app/uebungsplayer/AudioAnalysis.java b/app/src/main/java/app/uebungsplayer/AudioAnalysis.java
+--- a/app/src/main/java/app/uebungsplayer/AudioAnalysis.java	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/app/uebungsplayer/AudioAnalysis.java	2026-10-24 13:23:54.864046126 +0000
+@@ -0,0 +1,570 @@
++package app.uebungsplayer;
++
++/**
++ * Analyse eines Ausschnitts: mittlere Stimmung (Kammerton), Tempo, Tonart.
++ *
++ * Reine Rechnung ohne Android-Abhängigkeiten (Eingabe: Mono-Samples und Abtastrate), damit
++ * sie sich auf dem PC gegen den Python-Prototyp (repio_analyse.py) prüfen lässt.
++ * Die Algorithmen entsprechen dem Prototyp; die Fensterlängen sind auf Zeitdauern statt auf
++ * eine feste Abtastrate bezogen.
++ */
++public final class AudioAnalysis {
++
++    private AudioAnalysis() {}
++
++    /** Abbruch von außen (z. B. Popup geschlossen). */
++    public interface Cancel {
++        boolean isCancelled();
++    }
++
++    public static final class CancelledException extends RuntimeException {
++        public CancelledException() { super("cancelled"); }
++    }
++
++    public static final class TempoCandidate {
++        public final double bpm;
++        /** Bewertung relativ zum besten Kandidaten (1 = bester). */
++        public final double relative;
++        /** Vertrauen 0..1 (für die Farbanzeige). */
++        public final double confidence;
++
++        TempoCandidate(double bpm, double relative, double confidence) {
++            this.bpm = bpm;
++            this.relative = relative;
++            this.confidence = confidence;
++        }
++    }
++
++    public static final class KeyCandidate {
++        /** Grundton als Tonklasse, 0 = C … 11 = H. */
++        public final int tonic;
++        public final boolean minor;
++        public final double correlation;
++        /** Vertrauen 0..1 (für die Farbanzeige). */
++        public final double confidence;
++
++        KeyCandidate(int tonic, boolean minor, double correlation, double confidence) {
++            this.tonic = tonic;
++            this.minor = minor;
++            this.correlation = correlation;
++            this.confidence = confidence;
++        }
++    }
++
++    public static final class Result {
++        public double durationS;
++        /** Ausschnitt zu kurz für jede Analyse (unter ca. 93 ms) oder stumm. */
++        public boolean tooShort, silent;
++
++        /** NaN, wenn nicht bestimmt. */
++        public double tuningHz = Double.NaN;
++        public double tuningCent = Double.NaN;
++        public double tuningSpreadCent = Double.NaN;
++        /** Streuung in Hz (± um tuningHz). */
++        public double tuningTolHz = Double.NaN;
++        public int tuningPeaks;
++
++        /** null, wenn nicht bestimmt; dann sagt tempoTooShort bzw. tempoNoPulse, warum. */
++        public TempoCandidate[] tempo;
++        public boolean tempoTooShort, tempoNoPulse;
++        public double pulseStrength = Double.NaN;
++        public double beatsInSegment = Double.NaN;
++
++        /** null, wenn nicht bestimmt. */
++        public KeyCandidate[] keys;
++    }
++
++    // ------------------------------------------------------------------ Vorverarbeitung
++
++    /**
++     * Tiefpass (gefensterter Sinc, 63 Taps) und Dezimierung um einen ganzzahligen Faktor,
++     * sodass die Rate in der Nähe von 22 050 Hz liegt (44,1/48 kHz -> Faktor 2).
++     * Rückgabe: {neue Samples} ; die neue Rate liefert {@link #decimatedRate}.
++     */
++    public static float[] decimate(float[] x, int sr) {
++        int d = decimationFactor(sr);
++        if (d < 2) return x;
++        final int taps = 63, mid = taps / 2;
++        double fc = 0.45 / d; // Grenzfrequenz relativ zur Eingangsrate
++        double[] h = new double[taps];
++        double sum = 0;
++        for (int k = 0; k < taps; k++) {
++            int m = k - mid;
++            double s = (m == 0) ? 2 * fc : Math.sin(2 * Math.PI * fc * m) / (Math.PI * m);
++            double w = 0.54 - 0.46 * Math.cos(2 * Math.PI * k / (taps - 1));
++            h[k] = s * w;
++            sum += h[k];
++        }
++        for (int k = 0; k < taps; k++) h[k] /= sum;
++        int outLen = x.length / d;
++        float[] y = new float[outLen];
++        for (int i = 0; i < outLen; i++) {
++            int c = i * d;
++            double acc = 0;
++            for (int k = 0; k < taps; k++) {
++                int j = c + k - mid;
++                if (j >= 0 && j < x.length) acc += h[k] * x[j];
++            }
++            y[i] = (float) acc;
++        }
++        return y;
++    }
++
++    public static int decimationFactor(int sr) {
++        return Math.max(1, (int) Math.round(sr / 22050.0));
++    }
++
++    public static int decimatedRate(int sr) {
++        return sr / decimationFactor(sr);
++    }
++
++    // ------------------------------------------------------------------ Hauptfunktion
++
++    public static Result analyze(float[] samples, int sr, boolean doTuning, boolean doTempo, boolean doKey,
++                                 Cancel cancel) {
++        Result r = new Result();
++        r.durationS = samples.length / (double) sr;
++
++        int minFft = nearestPow2(0.093 * sr);
++        if (samples.length < minFft) {
++            r.tooShort = true;
++            return r;
++        }
++        double peak = 0;
++        for (float v : samples) peak = Math.max(peak, Math.abs(v));
++        if (peak < 1e-6) {
++            r.silent = true;
++            return r;
++        }
++        double[] x = new double[samples.length];
++        for (int i = 0; i < x.length; i++) x[i] = samples[i] / peak;
++
++        Peaks pk = null;
++        double a4 = 440.0;
++        if (doTuning || doKey) {
++            // Die Stimmung wird auch für die Tonart gebraucht (Bezug der Tonklassen)
++            pk = spectralPeaks(x, sr, cancel);
++            estimateTuning(pk, r);
++            if (!Double.isNaN(r.tuningHz)) a4 = r.tuningHz;
++            if (!doTuning) { // nur intern für die Tonart verwendet
++                r.tuningHz = r.tuningCent = r.tuningSpreadCent = r.tuningTolHz = Double.NaN;
++                r.tuningPeaks = 0;
++            }
++        }
++        if (doTempo) estimateTempo(x, sr, 110.0, r, cancel);
++        if (doKey && pk != null && pk.size > 0) estimateKey(pk, a4, r);
++        return r;
++    }
++
++    // ------------------------------------------------------------------ Spektralspitzen
++
++    static final class Peaks {
++        int size;
++        int[] frame = new int[1024];
++        double[] freq = new double[1024];
++        double[] amp = new double[1024];
++        int nFrames, nFft;
++
++        void add(int f, double hz, double a) {
++            if (size == frame.length) {
++                frame = java.util.Arrays.copyOf(frame, size * 2);
++                freq = java.util.Arrays.copyOf(freq, size * 2);
++                amp = java.util.Arrays.copyOf(amp, size * 2);
++            }
++            frame[size] = f;
++            freq[size] = hz;
++            amp[size] = a;
++            size++;
++        }
++    }
++
++    /** Zweierpotenz, die (logarithmisch) am nächsten bei n liegt. */
++    static int nearestPow2(double n) {
++        int e = (int) Math.round(Math.log(n) / Math.log(2));
++        return 1 << Math.max(e, 4);
++    }
++
++    /** Größte Zweierpotenz <= Ausschnittlänge, begrenzt auf ca. 93 ms … 743 ms. */
++    static int chooseFft(int nSamples, int sr) {
++        int min = nearestPow2(0.093 * sr), max = nearestPow2(0.743 * sr);
++        int n = min;
++        while (n * 2 <= Math.min(nSamples, max)) n *= 2;
++        return n;
++    }
++
++    /** Unterhalb dieser Frequenz liegen Halbtöne zu dicht für die Bin-Auflösung. */
++    static double lowestUsableFreq(int sr, int nFft) {
++        return Math.max(50.0, 2.0 * sr / nFft / 0.0595);
++    }
++
++    static double[] hann(int n) {
++        double[] w = new double[n];
++        for (int i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1));
++        return w;
++    }
++
++    static Peaks spectralPeaks(double[] x, int sr, Cancel cancel) {
++        final double fmax = 2000.0, relDb = -40.0;
++        int n = chooseFft(x.length, sr);
++        int hop = n / 4;
++        double fmin = Math.max(50.0, lowestUsableFreq(sr, n));
++        int kLo = Math.max(2, (int) (fmin * n / sr));
++        int kHi = Math.min(n / 2 - 3, (int) (fmax * n / sr));
++        int nFrames = 1 + (x.length - n) / hop;
++
++        Fft fft = new Fft(n);
++        double[] win = hann(n), re = new double[n], im = new double[n], mag = new double[n / 2 + 1];
++        double relFactor = Math.pow(10, relDb / 20);
++        double globalMax = 0;
++        Peaks p = new Peaks();
++        p.nFrames = nFrames;
++        p.nFft = n;
++
++        for (int f = 0; f < nFrames; f++) {
++            if (cancel != null && cancel.isCancelled()) throw new CancelledException();
++            int off = f * hop;
++            for (int i = 0; i < n; i++) {
++                re[i] = x[off + i] * win[i];
++                im[i] = 0;
++            }
++            fft.transform(re, im);
++            double frameMax = 0;
++            for (int k = 0; k <= n / 2; k++) {
++                mag[k] = Math.hypot(re[k], im[k]);
++                if (mag[k] > frameMax) frameMax = mag[k];
++            }
++            globalMax = Math.max(globalMax, frameMax);
++            double thr = frameMax * relFactor;
++            for (int k = kLo; k <= kHi; k++) {
++                double c = mag[k] + 1e-12, l1 = mag[k - 1] + 1e-12, r1 = mag[k + 1] + 1e-12;
++                double l2 = mag[k - 2] + 1e-12, r2 = mag[k + 2] + 1e-12;
++                // echtes Maximum: größer als die Nachbarn im Abstand 1 und 2 Bins
++                // (Abstand 2 unterdrückt die Nebenkeulen des Hann-Fensters)
++                if (!(c > l1 && c >= r1 && c > l2 && c >= r2 && c > thr)) continue;
++                double a = Math.log(l1), b = Math.log(c), cc = Math.log(r1);
++                double denom = a - 2 * b + cc;
++                double q = Math.abs(denom) > 1e-12 ? 0.5 * (a - cc) / denom : 0.0;
++                q = Math.max(-0.5, Math.min(0.5, q));
++                p.add(f, (k + q) * sr / n, Math.exp(b - 0.25 * (a - cc) * q));
++            }
++        }
++        // Stille ignorieren (wie im Prototyp: 70 dB unter dem lautesten Frame)
++        double floor = globalMax * Math.pow(10, -70.0 / 20);
++        int w = 0;
++        for (int i = 0; i < p.size; i++) {
++            if (p.amp[i] > floor) {
++                p.frame[w] = p.frame[i];
++                p.freq[w] = p.freq[i];
++                p.amp[w] = p.amp[i];
++                w++;
++            }
++        }
++        p.size = w;
++        return p;
++    }
++
++    // ------------------------------------------------------------------ 1. Stimmung
++
++    private static double mod100(double v) {
++        double m = v % 100.0;
++        return m < 0 ? m + 100.0 : m;
++    }
++
++    static void estimateTuning(Peaks p, Result r) {
++        final double fmin = 100.0, fmax = 2000.0;
++        int cnt = 0;
++        for (int i = 0; i < p.size; i++) if (p.freq[i] >= fmin && p.freq[i] <= fmax) cnt++;
++        if (cnt < 5) return;
++        double[] dev = new double[cnt], w = new double[cnt];
++        int j = 0;
++        for (int i = 0; i < p.size; i++) {
++            double f = p.freq[i];
++            if (f < fmin || f > fmax) continue;
++            double cents = 1200 * Math.log(f / 440.0) / Math.log(2);
++            dev[j] = mod100(cents + 50) - 50;
++            w[j] = Math.sqrt(p.amp[i]);
++            j++;
++        }
++        double[] hist = new double[100];
++        for (int i = 0; i < cnt; i++) hist[((int) Math.floor(dev[i] + 50)) % 100] += w[i];
++        double[] kernel = new double[21];
++        for (int k = -10; k <= 10; k++) kernel[k + 10] = Math.exp(-0.5 * (k / 3.0) * (k / 3.0));
++        int best = 0;
++        double bestVal = -1;
++        for (int i = 0; i < 100; i++) {
++            double s = 0;
++            for (int k = 0; k <= 20; k++) s += hist[Math.floorMod(i + k - 10, 100)] * kernel[k];
++            if (s > bestVal) {
++                bestVal = s;
++                best = i;
++            }
++        }
++        double coarse = best - 50 + 0.5;
++
++        double sx = 0, sy = 0;
++        for (int i = 0; i < cnt; i++) {
++            double dist = mod100(dev[i] - coarse + 50) - 50;
++            if (Math.abs(dist) > 15) continue;
++            double ang = 2 * Math.PI * dev[i] / 100;
++            sx += w[i] * Math.cos(ang);
++            sy += w[i] * Math.sin(ang);
++        }
++        double devMean = Math.atan2(sy, sx) * 100 / (2 * Math.PI);
++
++        double sw = 0, swd2 = 0, wAll = 0;
++        for (int i = 0; i < cnt; i++) {
++            wAll += w[i];
++            double dist = mod100(dev[i] - devMean + 50) - 50;
++            if (Math.abs(dist) > 15) continue;
++            sw += w[i];
++            swd2 += w[i] * dist * dist;
++        }
++        double spread = Math.sqrt(swd2 / sw);
++        r.tuningCent = devMean;
++        r.tuningHz = 440.0 * Math.pow(2, devMean / 1200);
++        r.tuningSpreadCent = spread;
++        r.tuningTolHz = r.tuningHz * (Math.pow(2, spread / 1200) - 1);
++        r.tuningPeaks = cnt;
++    }
++
++    // ------------------------------------------------------------------ 2. Tempo
++
++    /** Spektraler Fluss auf log-komprimiertem Betrag, lokal mittelwertbereinigt. */
++    static double[] onsetEnvelope(double[] x, int sr, int n, int hop, Cancel cancel) {
++        double[] xx = x;
++        if (xx.length < n) xx = java.util.Arrays.copyOf(x, n);
++        int nFrames = 1 + (xx.length - n) / hop;
++        Fft fft = new Fft(n);
++        double[] win = hann(n), re = new double[n], im = new double[n];
++        double[] prev = new double[n / 2 + 1], cur = new double[n / 2 + 1];
++        double[] flux = new double[nFrames];
++        for (int f = 0; f < nFrames; f++) {
++            if (cancel != null && (f & 63) == 0 && cancel.isCancelled()) throw new CancelledException();
++            int off = f * hop;
++            for (int i = 0; i < n; i++) {
++                re[i] = xx[off + i] * win[i];
++                im[i] = 0;
++            }
++            fft.transform(re, im);
++            double s = 0;
++            for (int k = 0; k <= n / 2; k++) {
++                cur[k] = Math.log1p(100.0 * Math.hypot(re[k], im[k]));
++                if (f > 0) s += Math.max(cur[k] - prev[k], 0);
++            }
++            flux[f] = s;
++            double[] t = prev; prev = cur; cur = t;
++        }
++        // gleitender Mittelwert über 0,4 s (wie numpy.convolve(..., "same"))
++        int w = Math.max(1, Math.min((int) (0.4 * sr / hop), nFrames));
++        double[] cum = new double[nFrames + 1];
++        for (int i = 0; i < nFrames; i++) cum[i + 1] = cum[i] + flux[i];
++        double[] o = new double[nFrames];
++        for (int i = 0; i < nFrames; i++) {
++            int lo = Math.max(0, i - w / 2), hi = Math.min(nFrames - 1, i + (w - 1) / 2);
++            double ma = (cum[hi + 1] - cum[lo]) / w;
++            o[i] = Math.max(flux[i] - ma, 0);
++        }
++        return o;
++    }
++
++    static void estimateTempo(double[] x, int sr, double priorCenter, Result r, Cancel cancel) {
++        final double bpmMin = 30.0, bpmMax = 240.0;
++        int nOn = nearestPow2(0.093 * sr), hop = nOn / 8;
++        double fr = sr / (double) hop;
++        double[] o = onsetEnvelope(x, sr, nOn, hop, cancel);
++        int n = o.length;
++        int maxLag = n / 2;
++        // Mindestens zwei volle Schlagperioden im Ausschnitt -> längste messbare Periode = halbe Länge
++        double bpmFloor = 60.0 * fr / Math.max(maxLag - 1, 1);
++        double effMin = Math.max(bpmMin, bpmFloor);
++        if (effMin > bpmMax * 0.95) {
++            r.tempoTooShort = true;
++            return;
++        }
++        double mean = 0;
++        for (double v : o) mean += v;
++        mean /= n;
++        int nf = 1;
++        while (nf < 2 * n) nf <<= 1;
++        double[] re = new double[nf], im = new double[nf];
++        for (int i = 0; i < n; i++) re[i] = o[i] - mean;
++        Fft fft = new Fft(nf);
++        fft.transform(re, im);
++        for (int i = 0; i < nf; i++) {
++            re[i] = re[i] * re[i] + im[i] * im[i];
++            im[i] = 0;
++        }
++        fft.transform(re, im); // Leistungsspektrum ist reell und symmetrisch -> Hin- = Rücktransformation
++        if (re[0] <= 0) {
++            r.tempoNoPulse = true;
++            return;
++        }
++        double[] acf = new double[n];
++        for (int k = 0; k < n; k++) acf[k] = re[k] / re[0] * n / (double) (n - k); // unverzerrte Normierung
++
++        int m = (int) Math.ceil((bpmMax + 0.05 - effMin) / 0.1);
++        double[] bpms = new double[m], raw = new double[m], score = new double[m];
++        for (int i = 0; i < m; i++) {
++            double bpm = effMin + 0.1 * i;
++            bpms[i] = bpm;
++            double lag = 60.0 * fr / bpm, s = 0;
++            int c = 0;
++            for (int k = 1; k <= 4; k++) {
++                double L = k * lag;
++                if (L < maxLag - 1) {
++                    int i0 = (int) Math.floor(L);
++                    double t = L - i0;
++                    s += acf[i0] * (1 - t) + acf[Math.min(i0 + 1, n - 1)] * t;
++                    c++;
++                }
++            }
++            raw[i] = c > 0 ? s / c : -1;
++            double lg = Math.log(bpm / priorCenter) / Math.log(2);
++            score[i] = Math.max(raw[i], 0) * Math.exp(-0.5 * lg * lg);
++        }
++
++        java.util.ArrayList<double[]> cands = new java.util.ArrayList<>();
++        for (int i = 1; i < m - 1; i++) {
++            if (score[i] > score[i - 1] && score[i] >= score[i + 1] && score[i] > 0) {
++                double a = score[i - 1], b = score[i], c = score[i + 1];
++                double d = a - 2 * b + c;
++                double q = Math.abs(d) > 1e-12 ? 0.5 * (a - c) / d : 0.0;
++                cands.add(new double[] {b, bpms[i] + 0.1 * q, raw[i]});
++            }
++        }
++        if (cands.isEmpty()) {
++            r.tempoNoPulse = true;
++            return;
++        }
++        cands.sort((u, v) -> Double.compare(v[0], u[0]));
++        java.util.ArrayList<double[]> picked = new java.util.ArrayList<>();
++        for (double[] c : cands) {
++            boolean distinct = true;
++            for (double[] q : picked) if (Math.abs(Math.log(c[1] / q[1])) <= 0.05) distinct = false;
++            if (distinct) picked.add(c);
++            if (picked.size() == 3) break;
++        }
++        double best = picked.get(0)[0];
++        double pulse = picked.get(0)[2];
++        double beats = (n / fr) * picked.get(0)[1] / 60.0;
++        // Gesamtvertrauen: deutlicher Puls (0,1 … 0,5) und genug Schläge (1 … 6)
++        double reliability = clamp01((pulse - 0.1) / 0.4) * clamp01((beats - 1) / 5.0);
++        r.pulseStrength = pulse;
++        r.beatsInSegment = beats;
++        r.tempo = new TempoCandidate[picked.size()];
++        for (int i = 0; i < picked.size(); i++) {
++            double rel = picked.get(i)[0] / best;
++            r.tempo[i] = new TempoCandidate(picked.get(i)[1], rel, rel * reliability);
++        }
++    }
++
++    // ------------------------------------------------------------------ 3. Tonart
++
++    // Krumhansl-Kessler-Profile (Grundton auf Index 0)
++    static final double[] KK_MAJOR = {6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88};
++    static final double[] KK_MINOR = {6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17};
++
++    static void estimateKey(Peaks p, double a4, Result r) {
++        double[] chroma = new double[12], frame = new double[12];
++        int cur = -1;
++        for (int i = 0; i <= p.size; i++) {
++            int f = i < p.size ? p.frame[i] : -2;
++            if (f != cur) { // Frame abschließen: auf sein Maximum normieren und aufsummieren
++                double mx = 0;
++                for (double v : frame) mx = Math.max(mx, v);
++                if (mx > 0) for (int k = 0; k < 12; k++) chroma[k] += frame[k] / mx;
++                java.util.Arrays.fill(frame, 0);
++                cur = f;
++            }
++            if (i == p.size) break;
++            double midi = 69 + 12 * Math.log(p.freq[i] / a4) / Math.log(2);
++            int pc = Math.floorMod((int) Math.rint(midi), 12);
++            frame[pc] += Math.sqrt(p.amp[i]);
++        }
++        double mx = 0;
++        for (double v : chroma) mx = Math.max(mx, v);
++        if (mx <= 0) return;
++        for (int k = 0; k < 12; k++) chroma[k] /= mx;
++
++        double durFactor = Math.max(0.25, Math.min(1.0, r.durationS / 6.0));
++        KeyCandidate[] all = new KeyCandidate[24];
++        double[] prof = new double[12];
++        for (int t = 0; t < 12; t++) {
++            for (int mode = 0; mode < 2; mode++) {
++                double[] base = mode == 0 ? KK_MAJOR : KK_MINOR;
++                for (int i = 0; i < 12; i++) prof[i] = base[Math.floorMod(i - t, 12)];
++                double c = pearson(chroma, prof);
++                all[t * 2 + mode] = new KeyCandidate(t, mode == 1, c, clamp01((c - 0.4) / 0.5) * durFactor);
++            }
++        }
++        java.util.Arrays.sort(all, (u, v) -> Double.compare(v.correlation, u.correlation));
++        r.keys = java.util.Arrays.copyOf(all, 3);
++    }
++
++    static double pearson(double[] a, double[] b) {
++        int n = a.length;
++        double ma = 0, mb = 0;
++        for (int i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
++        ma /= n;
++        mb /= n;
++        double sab = 0, saa = 0, sbb = 0;
++        for (int i = 0; i < n; i++) {
++            double da = a[i] - ma, db = b[i] - mb;
++            sab += da * db;
++            saa += da * da;
++            sbb += db * db;
++        }
++        return (saa > 0 && sbb > 0) ? sab / Math.sqrt(saa * sbb) : 0;
++    }
++
++    static double clamp01(double v) {
++        return Math.max(0, Math.min(1, v));
++    }
++
++    // ------------------------------------------------------------------ FFT
++
++    /** Komplexe Radix-2-FFT (in place), Größe Zweierpotenz. */
++    static final class Fft {
++        final int n;
++        final double[] cos, sin;
++        final int[] rev;
++
++        Fft(int n) {
++            this.n = n;
++            cos = new double[n / 2];
++            sin = new double[n / 2];
++            for (int i = 0; i < n / 2; i++) {
++                cos[i] = Math.cos(2 * Math.PI * i / n);
++                sin[i] = -Math.sin(2 * Math.PI * i / n);
++            }
++            rev = new int[n];
++            int bits = Integer.numberOfTrailingZeros(n);
++            for (int i = 0; i < n; i++) rev[i] = Integer.reverse(i) >>> (32 - bits);
++        }
++
++        void transform(double[] re, double[] im) {
++            for (int i = 0; i < n; i++) {
++                int j = rev[i];
++                if (i < j) {
++                    double t = re[i]; re[i] = re[j]; re[j] = t;
++                    t = im[i]; im[i] = im[j]; im[j] = t;
++                }
++            }
++            for (int size = 2; size <= n; size <<= 1) {
++                int half = size >> 1, step = n / size;
++                for (int start = 0; start < n; start += size) {
++                    for (int k = 0, tw = 0; k < half; k++, tw += step) {
++                        int a = start + k, b = a + half;
++                        double wr = cos[tw], wi = sin[tw];
++                        double tr = re[b] * wr - im[b] * wi;
++                        double ti = re[b] * wi + im[b] * wr;
++                        re[b] = re[a] - tr;
++                        im[b] = im[a] - ti;
++                        re[a] += tr;
++                        im[a] += ti;
++                    }
++                }
++            }
++        }
++    }
++}
+diff -ruN a/app/src/main/java/app/uebungsplayer/AudioDecoder.kt b/app/src/main/java/app/uebungsplayer/AudioDecoder.kt
+--- a/app/src/main/java/app/uebungsplayer/AudioDecoder.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/app/uebungsplayer/AudioDecoder.kt	2026-10-24 13:23:54.864080365 +0000
+@@ -0,0 +1,134 @@
++package app.uebungsplayer
++
++import android.content.Context
++import android.media.AudioFormat
++import android.media.MediaCodec
++import android.media.MediaExtractor
++import android.media.MediaFormat
++import android.net.Uri
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++
++/**
++ * Dekodiert einen Zeitbereich einer Audiodatei in Mono-Samples (Float, Kanäle gemittelt).
++ *
++ * MediaExtractor springt nur auf Synchronisationspunkte. Deshalb wird etwas vor dem Anfang
++ * aufgesetzt (Vorlauf, damit z. B. MP3-Decoder eingeschwungen sind) und anhand der Zeitstempel
++ * samplegenau auf [startMs, endMs) zugeschnitten.
++ */
++object AudioDecoder {
++
++    class Pcm(val samples: FloatArray, val sampleRate: Int)
++
++    private const val PREROLL_US = 500_000L
++    private const val TIMEOUT_US = 10_000L
++
++    /** Läuft im Hintergrund; [cancelled] wird regelmäßig abgefragt. */
++    fun decode(ctx: Context, uri: Uri, startMs: Int, endMs: Int, cancelled: () -> Boolean): Pcm {
++        val startUs = startMs * 1000L
++        val endUs = endMs * 1000L
++        val ex = MediaExtractor()
++        var codec: MediaCodec? = null
++        try {
++            ex.setDataSource(ctx, uri, null)
++            val track = (0 until ex.trackCount).firstOrNull {
++                ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
++            } ?: throw IllegalStateException("keine Audiospur")
++            ex.selectTrack(track)
++            val inFormat = ex.getTrackFormat(track)
++            var sampleRate = inFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
++            var channels = inFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
++            var isFloat = false
++
++            ex.seekTo(maxOf(0L, startUs - PREROLL_US), MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
++            val c = MediaCodec.createDecoderByType(inFormat.getString(MediaFormat.KEY_MIME)!!)
++            codec = c
++            c.configure(inFormat, null, null, 0)
++            c.start()
++
++            val out = FloatCollector(((endMs - startMs) / 1000.0 * sampleRate).toInt() + 1024)
++            val info = MediaCodec.BufferInfo()
++            var inputDone = false
++            var outputDone = false
++            while (!outputDone) {
++                if (cancelled()) throw AudioAnalysis.CancelledException()
++                if (!inputDone) {
++                    val inIdx = c.dequeueInputBuffer(TIMEOUT_US)
++                    if (inIdx >= 0) {
++                        val buf = c.getInputBuffer(inIdx)!!
++                        val n = ex.readSampleData(buf, 0)
++                        // Nach dem Ende nur noch etwas weiterlesen (Decoder-Verzögerung), dann Schluss
++                        if (n < 0 || ex.sampleTime > endUs + PREROLL_US) {
++                            c.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
++                            inputDone = true
++                        } else {
++                            c.queueInputBuffer(inIdx, 0, n, ex.sampleTime, 0)
++                            ex.advance()
++                        }
++                    }
++                }
++                val outIdx = c.dequeueOutputBuffer(info, TIMEOUT_US)
++                if (outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
++                    val f = c.outputFormat
++                    if (f.containsKey(MediaFormat.KEY_SAMPLE_RATE)) sampleRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
++                    if (f.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
++                    isFloat = f.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
++                        f.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
++                } else if (outIdx >= 0) {
++                    if (info.size > 0) {
++                        val buf = c.getOutputBuffer(outIdx)!!
++                        buf.position(info.offset)
++                        buf.limit(info.offset + info.size)
++                        val reachedEnd = append(
++                            buf.slice().order(ByteOrder.nativeOrder()), isFloat, channels, sampleRate,
++                            info.presentationTimeUs, startUs, endUs, out
++                        )
++                        if (reachedEnd) outputDone = true
++                    }
++                    c.releaseOutputBuffer(outIdx, false)
++                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
++                }
++            }
++            return Pcm(out.toArray(), sampleRate)
++        } finally {
++            try { codec?.stop() } catch (e: Exception) { }
++            try { codec?.release() } catch (e: Exception) { }
++            ex.release()
++        }
++    }
++
++    /** Hängt die Frames im Bereich [startUs, endUs) gemittelt an; true, wenn das Ende erreicht ist. */
++    private fun append(
++        buf: ByteBuffer, isFloat: Boolean, channels: Int, sampleRate: Int,
++        ptsUs: Long, startUs: Long, endUs: Long, out: FloatCollector
++    ): Boolean {
++        val ch = maxOf(1, channels)
++        val frames = if (isFloat) buf.remaining() / (4 * ch) else buf.remaining() / (2 * ch)
++        val fb = if (isFloat) buf.asFloatBuffer() else null
++        val sb = if (isFloat) null else buf.asShortBuffer()
++        for (i in 0 until frames) {
++            val t = ptsUs + i * 1_000_000L / sampleRate
++            if (t >= endUs) return true
++            if (t < startUs) continue
++            var sum = 0f
++            for (k in 0 until ch) {
++                val idx = i * ch + k
++                sum += if (fb != null) fb.get(idx) else sb!!.get(idx) / 32768f
++            }
++            out.add(sum / ch)
++        }
++        return false
++    }
++
++    private class FloatCollector(initial: Int) {
++        private var data = FloatArray(maxOf(initial, 1024))
++        private var size = 0
++
++        fun add(v: Float) {
++            if (size == data.size) data = data.copyOf(size * 2)
++            data[size++] = v
++        }
++
++        fun toArray(): FloatArray = data.copyOf(size)
++    }
++}
+diff -ruN a/app/src/main/java/app/uebungsplayer/Engine.kt b/app/src/main/java/app/uebungsplayer/Engine.kt
+--- a/app/src/main/java/app/uebungsplayer/Engine.kt	2026-10-24 13:23:54.856592682 +0000
++++ b/app/src/main/java/app/uebungsplayer/Engine.kt	2026-10-24 13:23:54.863654628 +0000
+@@ -71,6 +71,9 @@
+ 
+     fun items(): List<Item> = ann.items()
+ 
++    /** Inhalts-URI des geöffneten Stücks (z. B. für die Analyse), sonst null. */
++    fun trackUri(): Uri? = track?.let { Saf.docUri(Uri.parse(it.tree), it.docId) }
++
+     // ------------------------------------------------------------ Stück öffnen
+ 
+     fun open(t: Track, addToHistory: Boolean = true): Boolean {
+diff -ruN a/app/src/main/java/app/uebungsplayer/MainActivity.kt b/app/src/main/java/app/uebungsplayer/MainActivity.kt
+--- a/app/src/main/java/app/uebungsplayer/MainActivity.kt	2026-10-24 13:23:54.856664096 +0000
++++ b/app/src/main/java/app/uebungsplayer/MainActivity.kt	2026-10-24 13:23:54.863863243 +0000
+@@ -259,7 +259,7 @@
+     }
+ 
+     /**
+-     * Popup zum Bearbeiten von Name, Zeitpunkten und (bei Ausschnitten) Tempo.
++     * Popup zum Bearbeiten von Name, Zeitpunkten und (bei Ausschnitten) Tempo und Analyse.
+      * Die Musik pausiert, solange es offen ist, und läuft danach weiter.
+      */
+     private fun showEditDialog(item: Item) {
+@@ -293,13 +293,17 @@
+         )
+         val endF = seg?.let { field(getString(R.string.f_end), fmtFull(it.endMs), numeric = false, time = true) }
+         val speedF = seg?.let { field(getString(R.string.f_speed), it.speed.toString(), numeric = true, time = false) }
++        val panel = seg?.let { AnalysisPanel(this, box, it, startF, endF!!, speedF!!) }
+ 
+         val dlg = AlertDialog.Builder(this)
+             .setTitle(if (seg != null) R.string.edit_segment else R.string.edit_marker)
+             .setView(ScrollView(this).apply { addView(box) })
+             .setPositiveButton(R.string.ok, null)
+             .setNegativeButton(R.string.cancel, null)
+-            .setOnDismissListener { if (wasPlaying) Engine.play() }
++            .setOnDismissListener {
++                panel?.cancel()
++                if (wasPlaying) Engine.play()
++            }
+             .create()
+         dlg.window?.setSoftInputMode(
+             WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+@@ -326,6 +330,9 @@
+                     seg.startMs = t0
+                     seg.endMs = t1
+                     seg.speed = sp
++                    // Analyseergebnis (auch nur ein anders gewähltes Tempo) übernehmen,
++                    // sofern es zu Anfang und Ende passt; sonst verfällt es.
++                    seg.analysis = panel?.result()?.takeIf { it.matches(t0, t1) }
+                 } else if (item is Marker) {
+                     item.ms = t0
+                 }
+@@ -459,9 +466,15 @@
+             icon.imageTintList = ColorStateList.valueOf(if (seg != null) Settings.accent else 0xFF03A9F4.toInt())
+ 
+             v.findViewById<TextView>(R.id.rowTitle).text = item.name
++            // Bei Ausschnitten mit gewähltem Tempo: zusätzlich das Tempo bei der Ausschnitt-Geschwindigkeit
++            val bpm = if (seg != null && Settings.analyzeTempo) seg.bpmAtSpeed() else null
+             v.findViewById<TextView>(R.id.rowSub).text =
+-                if (seg != null) "${fmt(seg.startMs, true)}–${fmt(seg.endMs, true)} · ${seg.speed} %"
+-                else fmt(item.time, true)
++                if (seg != null) {
++                    "${fmt(seg.startMs, true)}–${fmt(seg.endMs, true)} · ${seg.speed} %" +
++                        (bpm?.let { " · " + getString(R.string.bpm_list, it) } ?: "")
++                } else {
++                    fmt(item.time, true)
++                }
+             v.findViewById<TimelineView>(R.id.rowTimeline)
+                 .setData(Engine.duration(), listOfNotNull(seg), listOfNotNull(mark))
+ 
+diff -ruN a/app/src/main/java/app/uebungsplayer/Model.kt b/app/src/main/java/app/uebungsplayer/Model.kt
+--- a/app/src/main/java/app/uebungsplayer/Model.kt	2026-10-24 13:23:54.856692697 +0000
++++ b/app/src/main/java/app/uebungsplayer/Model.kt	2026-10-24 13:23:54.863898514 +0000
+@@ -15,9 +15,40 @@
+     override var name: String,
+     var startMs: Int,
+     var endMs: Int,
+-    var speed: Int = 100
++    var speed: Int = 100,
++    var analysis: SegmentAnalysis? = null
+ ) : Item() {
+     override val time: Int get() = startMs
++
++    /** Analyse, sofern sie noch zu Anfang und Ende des Ausschnitts passt. */
++    fun validAnalysis(): SegmentAnalysis? = analysis?.takeIf { it.matches(startMs, endMs) }
++
++    /** Gewähltes Tempo des Originals, umgerechnet auf die Geschwindigkeit des Ausschnitts. */
++    fun bpmAtSpeed(): Double? = validAnalysis()?.chosenBpm?.let { it * speed / 100.0 }
++}
++
++/** Tempovorschlag aus der Analyse; confidence 0..1. */
++data class TempoEstimate(val bpm: Double, val confidence: Double)
++
++/** Tonartvorschlag: Grundton als Tonklasse (0 = C … 11 = H), Dur/Moll; confidence 0..1. */
++data class KeyEstimate(val tonic: Int, val minor: Boolean, val confidence: Double)
++
++/**
++ * Ergebnis der Ausschnitt-Analyse. Gilt nur für den analysierten Bereich [startMs, endMs];
++ * werden Anfang oder Ende des Ausschnitts geändert, verfällt es.
++ */
++data class SegmentAnalysis(
++    val startMs: Int,
++    val endMs: Int,
++    val tuningHz: Double? = null,
++    val tuningTolHz: Double? = null,
++    val tempos: List<TempoEstimate> = emptyList(),
++    val tempoChoice: Int = 0,
++    val keys: List<KeyEstimate> = emptyList()
++) {
++    val chosenBpm: Double? get() = tempos.getOrNull(tempoChoice)?.bpm
++    fun matches(start: Int, end: Int) = start == startMs && end == endMs
++    val isEmpty: Boolean get() = tuningHz == null && tempos.isEmpty() && keys.isEmpty()
+ }
+ 
+ data class Marker(override var name: String, var ms: Int) : Item() {
+diff -ruN a/app/src/main/java/app/uebungsplayer/Settings.kt b/app/src/main/java/app/uebungsplayer/Settings.kt
+--- a/app/src/main/java/app/uebungsplayer/Settings.kt	2026-10-24 13:23:54.856852419 +0000
++++ b/app/src/main/java/app/uebungsplayer/Settings.kt	2026-10-24 13:23:54.863967100 +0000
+@@ -7,6 +7,7 @@
+ import android.util.TypedValue
+ import android.view.View
+ import android.widget.Button
++import android.widget.CheckBox
+ import android.widget.GridLayout
+ import android.widget.RadioButton
+ import android.widget.RadioGroup
+@@ -15,7 +16,10 @@
+ import androidx.appcompat.app.AppCompatActivity
+ import androidx.core.content.ContextCompat
+ 
+-/** App-Einstellungen: Akzentfarbe (Ausschnitte, Auswahl, Schleife, Regler). Die Sprache verwaltet [Lang]. */
++/**
++ * App-Einstellungen: Akzentfarbe (Ausschnitte, Auswahl, Schleife, Regler) und die im
++ * Ausschnitt-Popup angebotenen Analysen. Die Sprache verwaltet [Lang].
++ */
+ object Settings {
+     val PALETTE = intArrayOf(
+         0xFFFF9800.toInt(), // Orange (Standard)
+@@ -31,8 +35,33 @@
+     var accent: Int = PALETTE[0]
+         private set
+ 
++    var analyzeTuning = true
++        private set
++    var analyzeTempo = true
++        private set
++    var analyzeKey = true
++        private set
++
++    /** Mindestens eine Analyse gewählt (sonst ist der Analyse-Button ausgegraut). */
++    val anyAnalysis: Boolean get() = analyzeTuning || analyzeTempo || analyzeKey
++
+     fun load(ctx: Context) {
+-        accent = ctx.getSharedPreferences("app", Context.MODE_PRIVATE).getInt("accent", PALETTE[0])
++        val p = ctx.getSharedPreferences("app", Context.MODE_PRIVATE)
++        accent = p.getInt("accent", PALETTE[0])
++        analyzeTuning = p.getBoolean("analyze_tuning", true)
++        analyzeTempo = p.getBoolean("analyze_tempo", true)
++        analyzeKey = p.getBoolean("analyze_key", true)
++    }
++
++    fun setAnalyses(ctx: Context, tuning: Boolean, tempo: Boolean, key: Boolean) {
++        analyzeTuning = tuning
++        analyzeTempo = tempo
++        analyzeKey = key
++        ctx.getSharedPreferences("app", Context.MODE_PRIVATE).edit()
++            .putBoolean("analyze_tuning", tuning)
++            .putBoolean("analyze_tempo", tempo)
++            .putBoolean("analyze_key", key)
++            .apply()
+     }
+ 
+     fun setAccent(ctx: Context, color: Int) {
+@@ -61,6 +90,9 @@
+     private lateinit var grid: GridLayout
+     private lateinit var langGroup: RadioGroup
+     private lateinit var btnConfirm: Button
++    private lateinit var cbTuning: CheckBox
++    private lateinit var cbTempo: CheckBox
++    private lateinit var cbKey: CheckBox
+     private var pendingAccent = 0
+ 
+     private val langButtons = mapOf("" to R.id.langSystem, "de" to R.id.langDe, "en" to R.id.langEn)
+@@ -74,8 +106,17 @@
+         grid = findViewById(R.id.swatches)
+         langGroup = findViewById(R.id.languageGroup)
+         btnConfirm = findViewById(R.id.btnConfirm)
+-
+-        if (savedInstanceState == null) langGroup.check(langButtons[Lang.current()] ?: R.id.langSystem)
++        cbTuning = findViewById(R.id.analysisTuning)
++        cbTempo = findViewById(R.id.analysisTempo)
++        cbKey = findViewById(R.id.analysisKey)
++
++        if (savedInstanceState == null) {
++            langGroup.check(langButtons[Lang.current()] ?: R.id.langSystem)
++            // Nach einer Drehung stellen die Ankreuzfelder ihren Zustand selbst wieder her
++            cbTuning.isChecked = Settings.analyzeTuning
++            cbTempo.isChecked = Settings.analyzeTempo
++            cbKey.isChecked = Settings.analyzeKey
++        }
+ 
+         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
+         findViewById<View>(R.id.btnCancel).setOnClickListener { finish() }
+@@ -93,6 +134,7 @@
+ 
+     private fun confirm() {
+         Settings.setAccent(this, pendingAccent)
++        Settings.setAnalyses(this, cbTuning.isChecked, cbTempo.isChecked, cbKey.isChecked)
+         val chosen = langButtons.entries.firstOrNull { it.value == langGroup.checkedRadioButtonId }?.key ?: ""
+         val changed = chosen != Lang.current()
+         finish()
+@@ -128,6 +170,7 @@
+         for (id in langButtons.values) {
+             CompoundButtonCompat.setButtonTintList(findViewById<RadioButton>(id), tint)
+         }
++        for (cb in listOf(cbTuning, cbTempo, cbKey)) CompoundButtonCompat.setButtonTintList(cb, tint)
+         btnConfirm.setTextColor(pendingAccent)
+     }
+ 
+diff -ruN a/app/src/main/java/app/uebungsplayer/Yaml.kt b/app/src/main/java/app/uebungsplayer/Yaml.kt
+--- a/app/src/main/java/app/uebungsplayer/Yaml.kt	2026-10-24 13:23:54.856899856 +0000
++++ b/app/src/main/java/app/uebungsplayer/Yaml.kt	2026-10-24 13:23:54.864017941 +0000
+@@ -1,24 +1,42 @@
+ package app.uebungsplayer
+ 
++import java.util.Locale
++
+ /**
+  * Minimaler YAML-Leser/-Schreiber für genau dieses Format (keine Fremdbibliothek nötig):
+  *
+- * version: 2
++ * version: 3
+  * segments:
+  *   - name: "Ausschnitt 1"
+  *     start_ms: 12000
+  *     end_ms: 24000
+  *     speed_percent: 85
++ *     analysis_start_ms: 12000          # ab hier optional: Ergebnis der Analyse
++ *     analysis_end_ms: 24000
++ *     tuning_hz: 442.80
++ *     tuning_tol_hz: 1.35
++ *     tempo_bpm: [96.10, 48.04, 191.40]
++ *     tempo_confidence: [1.00, 0.51, 0.46]
++ *     tempo_choice: 0
++ *     key: ["D:maj", "A:maj", "F#:min"]
++ *     key_confidence: [1.00, 0.55, 0.53]
+  * markers:
+  *   - name: "Marker 1"
+  *     ms: 5000
+  *
+- * Dateien ohne speed_percent (Version 1) werden mit 100 % gelesen.
++ * Dateien ohne speed_percent (Version 1) werden mit 100 % gelesen, Dateien ohne
++ * Analysefelder (Version 1 und 2) ohne Analyse. Ältere App-Versionen überlesen die Analysefelder.
+  */
+ object Yaml {
+ 
++    /** Tonklassen für die Tonart-Codes (sprachneutral, z. B. "F#:min"). */
++    private val PC_NAMES = arrayOf("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
++    private val PC_ALIASES = mapOf("Db" to 1, "D#" to 3, "Gb" to 6, "G#" to 8, "A#" to 10)
++
++    private fun num(v: Double) = String.format(Locale.ROOT, "%.2f", v)
++
+     fun write(a: Annotations): String {
+-        val sb = StringBuilder("version: 2\n")
++        val sb = StringBuilder("version: 3\n")
+         if (a.segments.isEmpty()) {
+             sb.append("segments: []\n")
+         } else {
+@@ -28,6 +46,7 @@
+                 sb.append("    start_ms: ").append(s.startMs).append('\n')
+                 sb.append("    end_ms: ").append(s.endMs).append('\n')
+                 sb.append("    speed_percent: ").append(s.speed).append('\n')
++                s.validAnalysis()?.takeUnless { it.isEmpty }?.let { writeAnalysis(sb, it) }
+             }
+         }
+         if (a.markers.isEmpty()) {
+@@ -42,6 +61,64 @@
+         return sb.toString()
+     }
+ 
++    private fun writeAnalysis(sb: StringBuilder, an: SegmentAnalysis) {
++        sb.append("    analysis_start_ms: ").append(an.startMs).append('\n')
++        sb.append("    analysis_end_ms: ").append(an.endMs).append('\n')
++        if (an.tuningHz != null) {
++            sb.append("    tuning_hz: ").append(num(an.tuningHz)).append('\n')
++            if (an.tuningTolHz != null) sb.append("    tuning_tol_hz: ").append(num(an.tuningTolHz)).append('\n')
++        }
++        if (an.tempos.isNotEmpty()) {
++            sb.append("    tempo_bpm: ").append(an.tempos.joinToString(", ", "[", "]") { num(it.bpm) }).append('\n')
++            sb.append("    tempo_confidence: ")
++                .append(an.tempos.joinToString(", ", "[", "]") { num(it.confidence) }).append('\n')
++            sb.append("    tempo_choice: ").append(an.tempoChoice).append('\n')
++        }
++        if (an.keys.isNotEmpty()) {
++            sb.append("    key: ").append(an.keys.joinToString(", ", "[", "]") {
++                quote(PC_NAMES[it.tonic] + if (it.minor) ":min" else ":maj")
++            }).append('\n')
++            sb.append("    key_confidence: ")
++                .append(an.keys.joinToString(", ", "[", "]") { num(it.confidence) }).append('\n')
++        }
++    }
++
++    /** "[1.0, 2.5]" -> Liste der Einträge (Anführungszeichen entfernt). */
++    private fun list(v: String): List<String> {
++        val t = v.trim().removePrefix("[").removeSuffix("]").trim()
++        if (t.isEmpty()) return emptyList()
++        return t.split(',').map { unquote(it.trim()) }
++    }
++
++    private fun keyCode(code: String): Pair<Int, Boolean>? {
++        val note = code.substringBefore(':').trim()
++        val mode = code.substringAfter(':', "").trim().lowercase()
++        val pc = PC_NAMES.indexOf(note).takeIf { it >= 0 } ?: PC_ALIASES[note] ?: return null
++        return when (mode) {
++            "maj" -> pc to false
++            "min" -> pc to true
++            else -> null
++        }
++    }
++
++    /** Baut die Analyse aus den gelesenen Feldern; null, wenn nichts Brauchbares da ist. */
++    private fun buildAnalysis(f: Map<String, String>): SegmentAnalysis? {
++        val st = f["analysis_start_ms"]?.toIntOrNull() ?: return null
++        val en = f["analysis_end_ms"]?.toIntOrNull() ?: return null
++        val tuning = f["tuning_hz"]?.toDoubleOrNull()?.takeIf { it in 300.0..600.0 }
++        val tol = f["tuning_tol_hz"]?.toDoubleOrNull()?.takeIf { tuning != null && it >= 0 }
++        val bpms = list(f["tempo_bpm"] ?: "").mapNotNull { it.toDoubleOrNull()?.takeIf { b -> b in 10.0..400.0 } }
++        val bpmConf = list(f["tempo_confidence"] ?: "").map { it.toDoubleOrNull() }
++        val tempos = bpms.mapIndexed { i, b -> TempoEstimate(b, (bpmConf.getOrNull(i) ?: 0.5).coerceIn(0.0, 1.0)) }
++        val choice = (f["tempo_choice"]?.toIntOrNull() ?: 0).takeIf { it in tempos.indices } ?: 0
++        val keyConf = list(f["key_confidence"] ?: "").map { it.toDoubleOrNull() }
++        val keys = list(f["key"] ?: "").mapIndexedNotNull { i, c ->
++            keyCode(c)?.let { (pc, minor) -> KeyEstimate(pc, minor, (keyConf.getOrNull(i) ?: 0.5).coerceIn(0.0, 1.0)) }
++        }
++        val an = SegmentAnalysis(st, en, tuning, tol, tempos, choice, keys)
++        return if (an.isEmpty) null else an
++    }
++
+     fun parse(text: String): Annotations {
+         val a = Annotations()
+         var section = ""
+@@ -50,6 +127,7 @@
+         var end: Int? = null
+         var ms: Int? = null
+         var speed: Int? = null
++        val extra = HashMap<String, String>() // Analysefelder des aktuellen Eintrags
+ 
+         fun flush() {
+             val n = name
+@@ -58,11 +136,12 @@
+             val m = ms
+             val sp = (speed ?: 100).coerceIn(50, 200)
+             if (section == "segments" && st != null && en != null && en > st) {
+-                a.segments.add(Segment(n ?: "Ausschnitt ${a.segments.size + 1}", st, en, sp))
++                a.segments.add(Segment(n ?: "Ausschnitt ${a.segments.size + 1}", st, en, sp, buildAnalysis(extra)))
+             } else if (section == "markers" && m != null) {
+                 a.markers.add(Marker(n ?: "Marker ${a.markers.size + 1}", m))
+             }
+             name = null; start = null; end = null; ms = null; speed = null
++            extra.clear()
+         }
+ 
+         for (raw in text.lines()) {
+@@ -87,6 +166,8 @@
+                 "end_ms" -> end = value.toIntOrNull()
+                 "ms" -> ms = value.toIntOrNull()
+                 "speed_percent" -> speed = value.toIntOrNull()
++                "analysis_start_ms", "analysis_end_ms", "tuning_hz", "tuning_tol_hz", "tempo_bpm",
++                "tempo_confidence", "tempo_choice", "key", "key_confidence" -> extra[key] = value
+             }
+         }
+         flush()
+diff -ruN a/app/src/main/res/layout/activity_settings.xml b/app/src/main/res/layout/activity_settings.xml
+--- a/app/src/main/res/layout/activity_settings.xml	2026-10-24 13:23:54.857914488 +0000
++++ b/app/src/main/res/layout/activity_settings.xml	2026-10-24 13:23:54.867965853 +0000
+@@ -84,6 +84,29 @@
+                     style="@style/LanguageOption"
+                     android:text="@string/language_en" />
+             </RadioGroup>
++
++            <TextView
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="24dp"
++                android:layout_marginBottom="4dp"
++                android:text="@string/analyses"
++                android:textSize="18sp" />
++
++            <CheckBox
++                android:id="@+id/analysisTuning"
++                style="@style/AnalysisOption"
++                android:text="@string/an_tuning" />
++
++            <CheckBox
++                android:id="@+id/analysisTempo"
++                style="@style/AnalysisOption"
++                android:text="@string/an_tempo" />
++
++            <CheckBox
++                android:id="@+id/analysisKey"
++                style="@style/AnalysisOption"
++                android:text="@string/an_key" />
+         </LinearLayout>
+     </ScrollView>
+ 
+diff -ruN a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+--- a/app/src/main/res/values/strings.xml	2026-10-24 13:23:54.858270319 +0000
++++ b/app/src/main/res/values/strings.xml	2026-10-24 13:23:54.868855677 +0000
+@@ -64,4 +64,38 @@
+     <string name="cd_back">Back</string>
+     <string name="cd_up">One level up</string>
+     <string name="cd_change_folder">Change folder</string>
++
++    <!-- Analysis of a section (tuning, tempo, key) -->
++    <string name="analyses">Analyses in the section popup</string>
++    <string name="analysis_head">Analysis</string>
++    <string name="analyze">Analyse</string>
++    <string name="analyzing">Analysing …</string>
++    <string name="an_tuning">Tuning</string>
++    <string name="an_tempo">Tempo</string>
++    <string name="an_key">Key</string>
++    <string name="tuning_value">a′ = %1$.1f Hz ± %2$.1f Hz</string>
++    <string name="not_determinable">not determinable</string>
++    <string name="tempo_value">%1$.1f BPM</string>
++    <string name="tempo_at_speed">At %1$d %%: %2$.1f BPM</string>
++    <string name="bpm_list">%1$.0f BPM</string>
++    <string name="tempo_too_short">Section too short (at least two beats needed)</string>
++    <string name="tempo_no_pulse">No clear beat detected</string>
++    <string name="key_major">%1$s major</string>
++    <string name="key_minor">%1$s minor</string>
++    <string-array name="key_major_names">
++        <item>C</item><item>D♭</item><item>D</item><item>E♭</item><item>E</item><item>F</item>
++        <item>F♯</item><item>G</item><item>A♭</item><item>A</item><item>B♭</item><item>B</item>
++    </string-array>
++    <string-array name="key_minor_names">
++        <item>C</item><item>C♯</item><item>D</item><item>E♭</item><item>E</item><item>F</item>
++        <item>F♯</item><item>G</item><item>G♯</item><item>A</item><item>B♭</item><item>B</item>
++    </string-array>
++    <string name="key_short_hint">Short section: the result reflects the sounding chord rather than the key</string>
++    <string name="confidence_value">%1$d %%</string>
++    <string name="cd_confidence">Confidence %1$d %%</string>
++    <string name="analysis_stale">Start or end changed – the results no longer apply</string>
++    <string name="analysis_failed">The section could not be analysed</string>
++    <string name="analysis_too_long">Sections longer than 10 minutes cannot be analysed</string>
++    <string name="analysis_too_short">The section is too short for an analysis</string>
++    <string name="analysis_silent">The section is silent</string>
+ </resources>
+diff -ruN a/app/src/main/res/values/themes.xml b/app/src/main/res/values/themes.xml
+--- a/app/src/main/res/values/themes.xml	2026-10-24 13:23:54.858289178 +0000
++++ b/app/src/main/res/values/themes.xml	2026-10-24 13:23:54.868833607 +0000
+@@ -25,6 +25,15 @@
+         <item name="android:textSize">20sp</item>
+     </style>
+ 
++    <!-- Wahl der Analysen in den Einstellungen: gleiche Größe wie die Sprachauswahl -->
++    <style name="AnalysisOption" parent="Widget.AppCompat.CompoundButton.CheckBox">
++        <item name="android:layout_width">match_parent</item>
++        <item name="android:layout_height">wrap_content</item>
++        <item name="android:minHeight">60dp</item>
++        <item name="android:paddingStart">12dp</item>
++        <item name="android:textSize">20sp</item>
++    </style>
++
+     <!-- Abbrechen / Bestätigen in den Einstellungen -->
+     <style name="DialogButton" parent="Widget.AppCompat.Button.Borderless">
+         <item name="android:layout_width">0dp</item>
+diff -ruN a/app/src/main/res/values-de/strings.xml b/app/src/main/res/values-de/strings.xml
+--- a/app/src/main/res/values-de/strings.xml	2026-10-24 13:23:54.858074614 +0000
++++ b/app/src/main/res/values-de/strings.xml	2026-10-24 13:23:54.868384080 +0000
+@@ -61,4 +61,38 @@
+     <string name="cd_back">Zurück</string>
+     <string name="cd_up">Eine Ebene hoch</string>
+     <string name="cd_change_folder">Ordner wechseln</string>
++
++    <!-- Analyse eines Ausschnitts (Stimmung, Tempo, Tonart) -->
++    <string name="analyses">Analysen im Ausschnitt-Popup</string>
++    <string name="analysis_head">Analyse</string>
++    <string name="analyze">Analysieren</string>
++    <string name="analyzing">Analysiere …</string>
++    <string name="an_tuning">Stimmung</string>
++    <string name="an_tempo">Tempo</string>
++    <string name="an_key">Tonart</string>
++    <string name="tuning_value">a′ = %1$.1f Hz ± %2$.1f Hz</string>
++    <string name="not_determinable">nicht bestimmbar</string>
++    <string name="tempo_value">%1$.1f BPM</string>
++    <string name="tempo_at_speed">Bei %1$d %%: %2$.1f BPM</string>
++    <string name="bpm_list">%1$.0f BPM</string>
++    <string name="tempo_too_short">Ausschnitt zu kurz (mindestens zwei Schläge nötig)</string>
++    <string name="tempo_no_pulse">Kein deutlicher Puls erkennbar</string>
++    <string name="key_major">%1$s-Dur</string>
++    <string name="key_minor">%1$s-Moll</string>
++    <string-array name="key_major_names">
++        <item>C</item><item>Des</item><item>D</item><item>Es</item><item>E</item><item>F</item>
++        <item>Fis</item><item>G</item><item>As</item><item>A</item><item>B</item><item>H</item>
++    </string-array>
++    <string-array name="key_minor_names">
++        <item>c</item><item>cis</item><item>d</item><item>es</item><item>e</item><item>f</item>
++        <item>fis</item><item>g</item><item>gis</item><item>a</item><item>b</item><item>h</item>
++    </string-array>
++    <string name="key_short_hint">Kurzer Ausschnitt: Das Ergebnis beschreibt eher den klingenden Akkord als die Tonart</string>
++    <string name="confidence_value">%1$d %%</string>
++    <string name="cd_confidence">Vertrauen %1$d %%</string>
++    <string name="analysis_stale">Anfang oder Ende geändert – die Ergebnisse gelten nicht mehr</string>
++    <string name="analysis_failed">Der Ausschnitt konnte nicht analysiert werden</string>
++    <string name="analysis_too_long">Ausschnitte über 10 Minuten können nicht analysiert werden</string>
++    <string name="analysis_too_short">Der Ausschnitt ist zu kurz für eine Analyse</string>
++    <string name="analysis_silent">Der Ausschnitt ist stumm</string>
+ </resources>

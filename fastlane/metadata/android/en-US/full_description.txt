@@ -11,6 +11,11 @@ Tempo
 • Store a tempo per section – e.g. practise the solo at 70 %, the rest at full speed
 • Back to 100 % with a single tap
 
+Analysis
+• For every section: tuning (concert pitch, e.g. 442 Hz), tempo in BPM and key
+• Tempo and key suggestions with a colour-coded confidence indicator; the chosen tempo is shown in the list, converted to your practice speed
+• Runs entirely on the device
+
 Made for practising
 • Large controls you can hit with an instrument in your hands
 • Playback continues with the screen locked

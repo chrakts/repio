@@ -1,0 +1,136 @@
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-24 13:23:54.862753295 +0000
++++ b/README.md	2026-10-25 08:55:14.268853102 +0000
+@@ -13,7 +13,10 @@
+     gradle wrapper --gradle-version 8.10.2     # einmalig, erzeugt ./gradlew
+     ./gradlew assembleDebug                     # APK: app/build/outputs/apk/debug/
+     adb install -r app/build/outputs/apk/debug/app-debug.apk
+-    ./gradlew bundleRelease                     # App Bundle für Google Play (Signatur-Konfiguration nötig)
++    ./gradlew assembleRelease                   # Release-APK: app/build/outputs/apk/release/
++./gradlew bundleRelease                     # App Bundle für Google Play
++
++Signierte Release-Builds: `keystore.properties.example` nach `keystore.properties` kopieren und ausfüllen (die Datei steht in `.gitignore`). Ohne diese Datei entsteht ein unsigniertes Release (`app-release-unsigned.apk`), wie es F-Droid baut und selbst signiert.
+ 
+ ## Aufbau
+ 
+diff -ruN "a/Spezifikation #U00dcbungsplayer (Android-App).md" "b/Spezifikation #U00dcbungsplayer (Android-App).md"
+--- "a/Spezifikation #U00dcbungsplayer (Android-App).md"	2026-10-24 13:23:54.862833578 +0000
++++ "b/Spezifikation #U00dcbungsplayer (Android-App).md"	2026-10-25 08:55:14.268867035 +0000
+@@ -316,10 +316,11 @@
+ gradle wrapper --gradle-version 8.10.2   # einmalig, erzeugt ./gradlew
+ ./gradlew assembleDebug                   # APK unter app/build/outputs/apk/debug/
+ adb install -r app/build/outputs/apk/debug/app-debug.apk
++./gradlew assembleRelease                 # Release-APK unter app/build/outputs/apk/release/
+ ./gradlew bundleRelease                   # App Bundle für Google Play
+ ```
+ 
+-Der Release-Build ist mit Code- und Ressourcenschrumpfung konfiguriert; die Signaturkonfiguration muss der Entwickler ergänzen.
++Der Release-Build ist mit Code- und Ressourcenschrumpfung konfiguriert. Signiert wird mit den Angaben aus `keystore.properties` (Vorlage `keystore.properties.example`, nicht im Git); fehlt die Datei, entsteht ein unsigniertes Release, wie es F-Droid baut.
+ 
+ **Prüfliste auf dem Gerät (USB)**
+ 
+diff -ruN a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	2026-10-24 13:23:54.862917805 +0000
++++ b/app/build.gradle.kts	2026-10-25 08:55:14.268921925 +0000
+@@ -1,8 +1,17 @@
++import java.util.Properties
++
+ plugins {
+     id("com.android.application")
+     id("org.jetbrains.kotlin.android")
+ }
+ 
++// Signaturdaten für den Release-Build aus keystore.properties im Projektordner (nicht im Git,
++// siehe .gitignore). Fehlt die Datei, entsteht ein unsigniertes Release – so baut auch F-Droid.
++val keystoreProps = Properties().apply {
++    val f = rootProject.file("keystore.properties")
++    if (f.exists()) f.inputStream().use { load(it) }
++}
++
+ android {
+     namespace = "app.uebungsplayer"
+     compileSdk = 35
+@@ -11,8 +20,19 @@
+         applicationId = "io.github.chrakts.repio"
+         minSdk = 24
+         targetSdk = 35
+-        versionCode = 8
+-        versionName = "1.7"
++        versionCode = 9
++        versionName = "1.8"
++    }
++
++    signingConfigs {
++        if (keystoreProps.getProperty("storeFile") != null) {
++            create("release") {
++                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
++                storePassword = keystoreProps.getProperty("storePassword")
++                keyAlias = keystoreProps.getProperty("keyAlias")
++                keyPassword = keystoreProps.getProperty("keyPassword")
++            }
++        }
+     }
+ 
+     buildTypes {
+@@ -20,6 +40,7 @@
+             isMinifyEnabled = true
+             isShrinkResources = true
+             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
++            signingConfig = signingConfigs.findByName("release")
+         }
+     }
+ 
+diff -ruN a/fastlane/metadata/android/de-DE/changelogs/9.txt b/fastlane/metadata/android/de-DE/changelogs/9.txt
+--- a/fastlane/metadata/android/de-DE/changelogs/9.txt	1970-01-01 00:00:00.000000000 +0000
++++ b/fastlane/metadata/android/de-DE/changelogs/9.txt	2026-10-25 08:55:14.276953891 +0000
+@@ -0,0 +1,3 @@
++• Neu: Analyse von Ausschnitten – Stimmung (Kammerton), Tempo in BPM und Tonart, jeweils mit Vertrauensanzeige
++• Gewähltes Tempo erscheint in der Liste, umgerechnet auf die Geschwindigkeit des Ausschnitts
++• In den Einstellungen wählbar, welche Analysen angeboten werden
+diff -ruN a/fastlane/metadata/android/de-DE/full_description.txt b/fastlane/metadata/android/de-DE/full_description.txt
+--- a/fastlane/metadata/android/de-DE/full_description.txt	2026-10-24 13:23:54.870076071 +0000
++++ b/fastlane/metadata/android/de-DE/full_description.txt	2026-10-25 08:55:14.276966251 +0000
+@@ -11,6 +11,11 @@
+ • Eigenes Tempo pro Ausschnitt – z. B. das Solo mit 70 %, den Rest in Originaltempo
+ • Mit einem Tipp zurück auf 100 %
+ 
++Analyse
++• Für jeden Ausschnitt: Stimmung (Kammerton, z. B. 442 Hz), Tempo in BPM und Tonart
++• Tempo- und Tonartvorschläge mit farbiger Vertrauensanzeige; das gewählte Tempo erscheint in der Liste, umgerechnet auf die Übungsgeschwindigkeit
++• Läuft vollständig auf dem Gerät
++
+ Fürs Üben gemacht
+ • Große Bedienelemente, auch mit Instrument in der Hand gut zu treffen
+ • Wiedergabe läuft bei gesperrtem Bildschirm weiter
+diff -ruN a/fastlane/metadata/android/en-US/changelogs/9.txt b/fastlane/metadata/android/en-US/changelogs/9.txt
+--- a/fastlane/metadata/android/en-US/changelogs/9.txt	1970-01-01 00:00:00.000000000 +0000
++++ b/fastlane/metadata/android/en-US/changelogs/9.txt	2026-10-25 08:55:14.278337330 +0000
+@@ -0,0 +1,3 @@
++• New: analysis of sections – tuning (concert pitch), tempo in BPM and key, each with a confidence indicator
++• The chosen tempo is shown in the list, converted to the section’s playback speed
++• Choose in the settings which analyses are offered
+diff -ruN a/fastlane/metadata/android/en-US/full_description.txt b/fastlane/metadata/android/en-US/full_description.txt
+--- a/fastlane/metadata/android/en-US/full_description.txt	2026-10-24 13:23:54.875821361 +0000
++++ b/fastlane/metadata/android/en-US/full_description.txt	2026-10-25 08:55:14.278349664 +0000
+@@ -11,6 +11,11 @@
+ • Store a tempo per section – e.g. practise the solo at 70 %, the rest at full speed
+ • Back to 100 % with a single tap
+ 
++Analysis
++• For every section: tuning (concert pitch, e.g. 442 Hz), tempo in BPM and key
++• Tempo and key suggestions with a colour-coded confidence indicator; the chosen tempo is shown in the list, converted to your practice speed
++• Runs entirely on the device
++
+ Made for practising
+ • Large controls you can hit with an instrument in your hands
+ • Playback continues with the screen locked
+diff -ruN a/keystore.properties.example b/keystore.properties.example
+--- a/keystore.properties.example	1970-01-01 00:00:00.000000000 +0000
++++ b/keystore.properties.example	2026-10-25 08:55:14.276741304 +0000
+@@ -0,0 +1,6 @@
++# Vorlage: nach keystore.properties kopieren und anpassen (keystore.properties steht in .gitignore).
++# storeFile darf absolut sein oder relativ zum Projektordner.
++storeFile=/home/BENUTZER/keys/repio-release.jks
++storePassword=GEHEIM
++keyAlias=repio
++keyPassword=GEHEIM

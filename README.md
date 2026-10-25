@@ -13,7 +13,10 @@ Voraussetzungen: JDK 17, Android SDK (cmdline-tools, platform 35, build-tools), 
     gradle wrapper --gradle-version 8.10.2     # einmalig, erzeugt ./gradlew
     ./gradlew assembleDebug                     # APK: app/build/outputs/apk/debug/
     adb install -r app/build/outputs/apk/debug/app-debug.apk
-    ./gradlew bundleRelease                     # App Bundle für Google Play (Signatur-Konfiguration nötig)
+    ./gradlew assembleRelease                   # Release-APK: app/build/outputs/apk/release/
+./gradlew bundleRelease                     # App Bundle für Google Play
+
+Signierte Release-Builds: `keystore.properties.example` nach `keystore.properties` kopieren und ausfüllen (die Datei steht in `.gitignore`). Ohne diese Datei entsteht ein unsigniertes Release (`app-release-unsigned.apk`), wie es F-Droid baut und selbst signiert.
 
 ## Aufbau
 

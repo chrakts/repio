@@ -316,10 +316,11 @@ Voraussetzungen: JDK 17, Android SDK (Kommandozeilenwerkzeuge, Plattform 35, Bui
 gradle wrapper --gradle-version 8.10.2   # einmalig, erzeugt ./gradlew
 ./gradlew assembleDebug                   # APK unter app/build/outputs/apk/debug/
 adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease                 # Release-APK unter app/build/outputs/apk/release/
 ./gradlew bundleRelease                   # App Bundle für Google Play
 ```
 
-Der Release-Build ist mit Code- und Ressourcenschrumpfung konfiguriert; die Signaturkonfiguration muss der Entwickler ergänzen.
+Der Release-Build ist mit Code- und Ressourcenschrumpfung konfiguriert. Signiert wird mit den Angaben aus `keystore.properties` (Vorlage `keystore.properties.example`, nicht im Git); fehlt die Datei, entsteht ein unsigniertes Release, wie es F-Droid baut.
 
 **Prüfliste auf dem Gerät (USB)**
 
